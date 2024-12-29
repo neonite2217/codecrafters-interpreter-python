@@ -1,44 +1,33 @@
 import sys
 
 def main():
-
+    # Check if the correct number of arguments are passed
     if len(sys.argv) < 3:
-
-        print("Usage: ./your_program.sh tokenize <filename>", file=sys.stderr)
-
+        print("Usage: python your_program.py tokenize <filename>", file=sys.stderr)
         exit(1)
 
+    # Get command and filename from the arguments
     command = sys.argv[1]
-
     filename = sys.argv[2]
 
+    # Check if the command is "tokenize"
     if command != "tokenize":
-
         print(f"Unknown command: {command}", file=sys.stderr)
-
         exit(1)
 
-    with open(filename) as file:
-
-        file_contents = file.read()
-
-    print("Logs from your program will appear here!", file=sys.stderr)
-
-     if file_contents:
-            raise NotImplementedError("Scanner not implemented")
-
-     else:
-
-         print("EOF  null") # Placeholder, remove this line when implementing the scanner
-
+    # Try to open the file and read its contents
+    try:
+        with open(filename, 'r') as file:
+            file_contents = file.read()
+    except FileNotFoundError:
+        print(f"File not found: {filename}", file=sys.stderr)
+        exit(1)
+    
+    # Placeholder for the scanner (to be implemented)
     if file_contents:
-
-        raise NotImplementedError("Scanner not implemented")
-
+        raise NotImplementedError("Scanner not implemented yet")
     else:
-
-        print("EOF  null") # Placeholder, remove this line when implementing the scanner
+        print("EOF null")  # Placeholder, remove when scanner is implemented
 
 if __name__ == "__main__":
-
     main()
