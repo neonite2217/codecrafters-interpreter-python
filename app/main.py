@@ -26,23 +26,21 @@ def main():
 
         file_contents = file.read()
 
-    # Uncomment this block to pass the first stage
+    for token in file_contents:
 
-    for x in file_contents:
-
-        if x == "(":
+        if token == "(":
 
             print("LEFT_PAREN ( null")
 
-        elif x == ")":
+        elif token == ")":
 
             print("RIGHT_PAREN ) null")
 
-        elif x == "{":
+        elif token == "{":
 
             print("LEFT_BRACE { null")
 
-        elif x == "}":
+        elif token == "}":
 
             print("RIGHT_BRACE } null")
 
