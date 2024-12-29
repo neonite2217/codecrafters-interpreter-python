@@ -1,156 +1,97 @@
 import sys
 
-class Token:
+def scanning(lines):
 
-    def __init__(self, type, lexeme, literal, line):
+    mapping = {
 
-        self.type = type
+        "(": "LEFT_PAREN ( null",
 
-        self.lexeme = lexeme
+        ")": "RIGHT_PAREN ) null",
 
-        self.literal = literal
+        "{": "LEFT_BRACE { null",
 
-        self.line = line
+        "}": "RIGHT_BRACE } null",
 
-    def __str__(self):
+        "*": "STAR * null",
 
-        literal_str = "null" if self.literal is None else str(self.literal)
+        ".": "DOT . null",
 
-        return f"{self.type} {self.lexeme} {literal_str}"
+        ",": "COMMA , null",
 
-class Scanner:
+        "+": "PLUS + null",
 
-    def __init__(self, source):
+        "-": "MINUS - null",
 
-        self.source = source
+        ";": "SEMICOLON ; null",
 
-        self.tokens = []
+        "=": "EQUAL = null",
 
-        self.start = 0
+        "==": "EQUAL_EQUAL == null",
 
-        self.current = 0
+        "!": "BANG ! null",
 
-        self.line = 1
+        "!=": "BANG_EQUAL != null",
 
-        self.errors = []
+        "<": "LESS < null",
 
-    def scan_tokens(self):
+        "<=": "LESS_EQUAL <= null",
 
-        while not self.is_at_end():
+        ">": "GREATER > null",
 
-            self.start = self.current
+        ">=": "GREATER_EQUAL >= null",
 
-            self.scan_token()
+    }
 
-        self.tokens.append(Token("EOF", "", None, self.line))
+    can_read_next = set("=!<>")
 
-        return self.tokens, self.errors
+    has_error = 0
 
-    def is_at_end(self):
+    read_two_tokens = False
 
-        return self.current >= len(self.source)
+    for line, contents in enumerate(lines):
 
-    def scan_token(self):
+        for i, c in enumerate(contents):
 
-        char = self.advance()
+            if read_two_tokens:
 
-        if char == "(":
+                read_two_tokens = False
 
-            self.add_token("LEFT_PAREN")
+                continue
 
-        elif char == ")":
+            try:
 
-            self.add_token("RIGHT_PAREN")
+                if (
+                    c in can_read_next
 
-        elif char == "{":
+                    and i + 1 < len(contents)
 
-            self.add_token("LEFT_BRACE")
+                    and contents[i + 1] == "="
 
-        elif char == "}":
+                ):
 
-            self.add_token("RIGHT_BRACE")
+                    print(mapping[contents[i : i + 2]])
 
-        elif char == ",":
+                    read_two_tokens = True
 
-            self.add_token("COMMA")
+                else:
 
-        elif char == ".":
+                    print(mapping[c])
 
-            self.add_token("DOT")
+            except KeyError:
 
-        elif char == "-":
+                has_error = 65
 
-            self.add_token("MINUS")
-
-        elif char == "+":
-
-            self.add_token("PLUS")
-
-        elif char == ";":
-
-            self.add_token("SEMICOLON")
-
-        elif char == "*":
-
-            self.add_token("STAR")
-
-        elif char == "=":
-
-            if self.match("="):
-
-                self.add_token("EQUAL_EQUAL")
-
-            else:
-
-                self.add_token("EQUAL")
-
-        elif char == "!":
-
-            if self.match("="):
-
-                self.add_token("BANG_EQUAL")
-
-            else:
-
-                self.add_token("BANG")
+                sys.stderr.write(f"[line {line+1}] Error: Unexpected character: {c}\n")
 
         else:
 
-            self.error(f"Unexpected character: {char}")
+            print("EOF  null")
 
-    def match(self, expected):
-
-        if self.is_at_end():
-
-            return False
-
-        if self.source[self.current] != expected:
-
-            return False
-
-        self.current += 1
-
-        return True
-
-    def advance(self):
-
-        self.current += 1
-
-        return self.source[self.current - 1]
-
-    def add_token(self, type, literal=None):
-
-        text = self.source[self.start : self.current]
-
-        self.tokens.append(Token(type, text, literal, self.line))
-
-    def error(self, message):
-
-        self.errors.append(f"[line {self.line}] Error: {message}")
+    exit(has_error)
 
 def main():
 
-    if len(sys.argv) < 3:
+     if len(sys.argv) < 3:
 
         print("Usage: ./your_program.sh tokenize <filename>", file=sys.stderr)
 
@@ -168,23 +109,21 @@ def main():
 
     with open(filename) as file:
 
-        file_contents = file.read()
+        file_contents = file.readlines()
 
-    scanner = Scanner(file_contents)
+    # Uncomment this block to pass the first stage
 
-    tokens, errors = scanner.scan_tokens()
+    if file_contents:
 
-    for token in tokens:
+        scanning(file_contents)
 
-        print(token)
+    else:
 
-    for error in errors:
+        print(
 
-        print(error, file=sys.stderr)
+            "EOF  null"
 
-    if errors:
-
-        exit(65)  # Exit with code 65 for lexical errors
+        )  # Placeholder, remove this line when implementing the scanner
 
 if __name__ == "__main__":
 
