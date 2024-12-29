@@ -26,73 +26,119 @@ def main():
 
         file_contents = file.read()
 
-    error = False
+    exit_code = 0
 
-    for token in file_contents:
+    # Uncomment this block to pass the first stage
 
-        if token == "(":
+    toks = []
 
-            print("LEFT_PAREN ( null")
+    errs = []
 
-        elif token == ")":
+    if file_contents:
 
-            print("RIGHT_PAREN ) null")
+        line_no = 1
 
-        elif token == "{":
+        for ch in file_contents:
 
-            print("LEFT_BRACE { null")
+        ptr = 0
 
-        elif token == "}":
+        while ptr < len(file_contents):
 
-            print("RIGHT_BRACE } null")
+            ch = file_contents[ptr]
 
-        elif token == "*":
+            ch_name = ""
 
-            print("STAR * null")
+            if ch == "(":
 
-        elif token == ".":
+                ch_name = "LEFT_PAREN"
 
-            print("DOT . null")
+            elif ch == ")":
 
-        elif token == ",":
+                ch_name = "RIGHT_PAREN"
 
-            print("COMMA , null")
+            elif ch == "{":
 
-        elif token == "+":
+                ch_name = "LEFT_BRACE"
 
-            print("PLUS + null")
+            elif ch == "}":
 
-        elif token == "-":
+                ch_name = "RIGHT_BRACE"
 
-            print("MINUS - null")
+            elif ch == ",":
 
-        elif token == ";":
+                ch_name = "COMMA"
 
-            print("SEMICOLON ; null")
+            elif ch == ".":
 
-        else:
+                ch_name = "DOT"
 
-            error = True
+            elif ch == "+":
 
-            line_number = file_contents.count("\n", 0, file_contents.find(token)) + 1
+                ch_name = "PLUS"
 
-            print(
+            elif ch == "-":
 
-                "[line %s] Error: Unexpected character: %s" % (line_number, token),
+                ch_name = "MINUS"
 
-                file=sys.stderr,
+            elif ch == ";":
 
-            )
+                ch_name = "SEMICOLON"
 
-    print("EOF  null")
+            elif ch == "*":
 
-    if error:
+                ch_name = "STAR"
 
-        exit(65)
+            elif ch == "\n":
+
+                line_no += 1
+
+                continue
+
+            elif ch == "=":
+
+                if ptr < len(file_contents) - 1 and file_contents[ptr + 1] == "=":
+
+                    ch_name = "EQUAL_EQUAL"
+
+                    ch = "=="
+
+                else:
+
+                    ch_name = "EQUAL"
+
+            else:
+
+                errs.append(f"[line {line_no}] Error: Unexpected character: {ch}")
+
+                exit_code = 65
+
+                ptr += 1
+
+                continue
+
+            ptr += len(ch)
+
+            toks.append(f"{ch_name} {ch} null")
+
+        toks.append(
+
+            "EOF  null"
+
+        )  # Placeholder, remove this line when implementing the scanner
+
+        print("\n".join(errs), file=sys.stderr)
+
+        print("\n".join(toks))
 
     else:
 
-        exit(0)
+        print(
+
+            "EOF  null"
+
+        )  # Placeholder, remove this line when implementing the scanner
+
+    exit(exit_code)
 
 if __name__ == "__main__":
 
