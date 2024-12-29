@@ -45,6 +45,29 @@ def main():
         elif x == "}":
 
             print("RIGHT_BRACE } null")
+        elif token == "*":
+
+            print("STAR * null")
+
+        elif token == ".":
+
+            print("DOT . null")
+
+        elif token == ",":
+
+            print("COMMA , null")
+
+        elif token == "+":
+
+            print("PLUS + null")
+
+        elif token == "-":
+
+            print("MINUS - null")
+
+        elif token == ";":
+
+            print("SEMICOLON ; null")
 
     print("EOF  null")
 
