@@ -1,324 +1,114 @@
 import sys
 
-import typing
+import os
 
-from .grammar import Token, TokenType
+def match_keyword(char, line_number=1):
 
-class Scanner:
+    match char:
 
-    keywords = {
+        case "(":
 
-        "and": TokenType.AND,
+            return f"LEFT_PAREN {char} null", True
 
-        "class": TokenType.CLASS,
+        case ")":
 
-        "else": TokenType.ELSE,
+            return f"RIGHT_PAREN {char} null", True
 
-        "false": TokenType.FALSE,
+        case "{":
 
-        "for": TokenType.FOR,
+            return f"LEFT_BRACE {char} null", True
 
-        "fun": TokenType.FUN,
+        case "}":
 
-        "if": TokenType.IF,
+            return f"RIGHT_BRACE {char} null", True
 
-        "nil": TokenType.NIL,
+        case ",":
 
-        "or": TokenType.OR,
+            return f"COMMA {char} null", True
 
-        "print": TokenType.PRINT,
+        case ".":
 
-        "return": TokenType.RETURN,
+            return f"DOT {char} null", True
 
-        "super": TokenType.SUPER,
+        case ";":
 
-        "this": TokenType.THIS,
+            return f"SEMICOLON {char} null", True
 
-        "true": TokenType.TRUE,
+        case "+":
 
-        "var": TokenType.VAR,
+            return f"PLUS {char} null", True
 
-        "while": TokenType.WHILE,
+        case "*":
 
-    }
+            return f"STAR {char} null", True
 
-    def __init__(self, source: str):
+        case "-":
 
-        self.source = source
+            return f"MINUS {char} null", True
 
-        self.tokens: typing.List[Token] = []
+        case "":
 
-        self.start = 0
+            return f"EOF {char} null", True
 
-        self.current = 0
+        case "==":
 
-        self.line = 1
+            return f"EQUAL_EQUAL {char} null", True
 
-        self.had_error = False
+        case "!=":
 
-    @property
+            return f"BANG_EQUAL {char} null", True
 
-    def is_at_end(self):
+        case "<":
 
-        return self.current >= len(self.source)
+            return f"LESS {char} null", True
 
-    @property
+        case "<=":
 
-    def text(self):
+            return f"LESS_EQUAL {char} null", True
 
-        return self.source[self.start : self.current]
+        case ">":
 
-    def scan_tokens(self):
+            return f"GREATER {char} null", True
 
-        while not self.is_at_end:
+        case ">=":
 
-            self.start = self.current
+            return f"GREATER_EQUAL {char} null", True
 
-            self.scan_token()
+        case "!":
 
-        self.tokens.append(Token(TokenType.EOF, "", None, self.line))
+            return f"BANG {char} null", True
 
-        return self.tokens
+        case "=":
 
-    def scan_token(self):
+            return f"EQUAL {char} null", True
 
-        character = self.advance()
+        case "/":
 
-        match character:
+            return f"SLASH {char} null", True
 
-            case "(":
+        case _:
 
-                self.add_token(TokenType.LEFT_PAREN)
+            return f"[line {line_number}] Error: Unexpected character: {char}", False
 
-            case ")":
+def print_token(return_str, not_error=True):
 
-                self.add_token(TokenType.RIGHT_PAREN)
+    if not_error:
 
-            case "{":
+        print(return_str)
 
-                self.add_token(TokenType.LEFT_BRACE)
+        return None
 
-            case "}":
+    else:
 
-                self.add_token(TokenType.RIGHT_BRACE)
+        print(return_str, file=sys.stderr)
 
-            case ",":
-
-                self.add_token(TokenType.COMMA)
-
-            case ".":
-
-                self.add_token(TokenType.DOT)
-
-            case "-":
-
-                self.add_token(TokenType.MINUS)
-
-            case "+":
-
-                self.add_token(TokenType.PLUS)
-
-            case ";":
-
-                self.add_token(TokenType.SEMICOLON)
-
-            case "*":
-
-                self.add_token(TokenType.STAR)
-
-            case "!":
-
-                self.add_token(
-
-                    TokenType.BANG_EQUAL if self.match("=") else TokenType.BANG
-
-                )
-
-            case "=":
-
-                self.add_token(
-
-                    TokenType.EQUAL_EQUAL if self.match("=") else TokenType.EQUAL
-
-                )
-
-            case "<":
-
-                self.add_token(
-
-                    TokenType.LESS_EQUAL if self.match("=") else TokenType.LESS
-
-                )
-
-            case ">":
-
-                self.add_token(
-
-                    TokenType.GREATER_EQUAL if self.match("=") else TokenType.GREATER
-
-                )
-
-            case "/":
-
-                self.advance_next_line() if self.match("/") else self.add_token(
-
-                    TokenType.SLASH
-
-                )
-
-            case " ":
-
-                pass
-
-            case "\r":
-
-                pass
-
-            case "\t":
-
-                pass
-
-            case "\n":
-
-                self.line += 1
-
-            case '"':
-
-                self.string()
-
-            case _:
-
-                if self.is_number(character):
-
-                    self.number()
-
-                elif self.is_alpha(character):
-
-                    self.identifier()
-
-                else:
-
-                    self.error(self.line, f"Unexpected character: {character}")
-
-    def peek(self, n=0):
-
-        index = self.current + n
-
-        if index >= len(self.source):
-
-            return "\0"
-
-        return self.source[index]
-
-    def advance(self):
-
-        index = self.current
-
-        self.current += 1
-
-        return self.source[index]
-
-    def match(self, expected: str):
-
-        if self.is_at_end:
-
-            return False
-
-        if self.source[self.current] != expected:
-
-            return False
-
-        self.current += 1
-
-        return True
-
-    def advance_next_line(self):
-
-        while self.peek() != "\n" and not self.is_at_end:
-
-            self.advance()
-
-    def add_token(self, type: TokenType, literal: typing.Any = None):
-
-        self.tokens.append(Token(type, self.text, literal, self.line))
-
-    def error(self, line: int, message: str):
-
-        self.report(line, "", message)
-
-    def report(self, line: int, where: str, message: str):
-
-        print(f"[line {line}] Error{where}: {message}", file=sys.stderr)
-
-        self.had_error = True
-
-    def string(self):
-
-        while self.peek() != '"' and not self.is_at_end:
-
-            if self.peek() == "\n":
-
-                self.line += 1
-
-            self.advance()
-
-        if self.is_at_end:
-
-            self.error(self.line, "Unterminated string.")
-
-            return
-
-        # closing "
-
-        self.advance()
-
-        value = self.source[self.start + 1 : self.current - 1]
-
-        self.add_token(TokenType.STRING, value)
-
-    def number(self):
-
-        while self.is_number(self.peek()):
-
-            self.advance()
-
-        if self.peek() == "." and self.is_number(self.peek(1)):
-
-            # consume .
-
-            self.advance()
-
-            while self.is_number(self.peek()):
-
-                self.advance()
-
-        value = float(self.text)
-
-        self.add_token(TokenType.NUMBER, value)
-
-    def identifier(self):
-
-        while self.is_alpha_or_number(self.peek()):
-
-            self.advance()
-
-        type = self.keywords.get(self.text, TokenType.IDENTIFIER)
-
-        self.add_token(type)
-
-    def is_number(self, character: str):
-
-        return character.isnumeric()
-
-    def is_alpha(self, character: str):
-
-        return character.isalpha() or character == "_"
-
-    def is_alpha_or_number(self, character: str):
-
-        return self.is_number(character) or self.is_alpha(character)
+        return 65
 
 def main():
+
+    # You can use print statements as follows for debugging, they'll be visible when running tests.
+
+    # print("Logs from your program will appear here!", file=sys.stderr)
 
     if len(sys.argv) < 3:
 
@@ -336,27 +126,103 @@ def main():
 
         exit(1)
 
-    with open(filename) as file:
+    if not os.path.exists(filename):
 
-        file_contents = file.read()
+        file_contents = filename
 
-    scanner = Scanner(file_contents)
+    else:
 
-    tokens = scanner.scan_tokens()
+        with open(filename) as file:
 
-    for token in tokens:
+            file_contents = file.read()
 
-        literal = token.literal
+    # Uncomment this block to pass the first stage
 
-        if literal is None:
+    if file_contents:
 
-            literal = "null"
+        res = None
 
-        print(f"{token.type.name} {token.lexeme} {literal}")
+        error_code = None
 
-    if scanner.had_error:
+        i = 0
 
-        exit(65)
+        # print(file_contents)
+
+        while i < len(file_contents):
+
+            char = file_contents[i]
+
+            if char in ["=", "!"]:
+
+                # print(f"LEN FILE CONTENTS {len(file_contents)} and i+1 {i+1}")
+
+                if len(file_contents) > i + 1 and file_contents[i + 1] == "=":
+
+                    res = print_token(
+
+                        *match_keyword(f"{file_contents[i]}{file_contents[i+1]}")
+
+                    )
+
+                    i += 1
+
+                else:
+
+                    res = print_token(*match_keyword(char))
+
+            elif char in ["<", ">"]:
+
+                if len(file_contents) > i + 1 and file_contents[i + 1] == "=":
+
+                    res = print_token(
+
+                        *match_keyword(f"{file_contents[i]}{file_contents[i+1]}")
+
+                    )
+
+                    i += 1
+
+                else:
+
+                    res = print_token(*match_keyword(char))
+
+            elif char in ["/"]:
+
+                if len(file_contents) > i + 1 and file_contents[i + 1] == "/":
+
+                    while i < len(file_contents) and file_contents[i] != "\n":
+
+                        i += 1
+
+                else:
+
+                    res = print_token(*match_keyword(char))
+
+            else:
+
+                res = print_token(*match_keyword(char))
+
+            i += 1
+
+            error_code = error_code if error_code is not None else res
+
+        print("EOF  null")
+
+        if error_code:
+
+            exit(error_code)
+
+        else:
+
+            exit(0)
+
+    else:
+
+        print(
+
+            "EOF  null"
+
+        )  # Placeholder, remove this line when implementing the scanner
 
 if __name__ == "__main__":
 
