@@ -45,6 +45,7 @@ def main():
         elif x == "}":
 
             print("RIGHT_BRACE } null")
+
         elif token == "*":
 
             print("STAR * null")
