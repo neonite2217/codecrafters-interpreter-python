@@ -38,8 +38,6 @@ def main():
 
         line_no = 1
 
-        for ch in file_contents:
-
         ptr = 0
 
         while ptr < len(file_contents):
