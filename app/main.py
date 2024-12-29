@@ -1,177 +1,163 @@
-import enum
-
 import sys
 
-RET = 0
+from . import error
 
-RET_LEXICAL_ERROR = 65
+from .scanner import Scanner
 
-class Token:
+from .parser import Parser
 
-    __slots__ = ("type", "repr")
+from .ast_printer import AstPrinter
 
-    def __init__(self, type: str, repr: str) -> None:
+from .interpreter import Interpreter
 
-        self.type = type
+interpreter = Interpreter()
 
-        self.repr = repr
+def main() -> None:
 
-    def __str__(self) -> str:
+    if len(sys.argv) == 1:  # run interactive interpreter
 
-        return f"{self.type} {self.repr} null"
+        run_prompt()
 
-EOF_TOKEN = Token("EOF", "")
+    elif len(sys.argv) > 3:
 
-SINGLE_CHARACTER_TOKENS = [
+        print("Too many args", sys.stderr)
 
-    Token("LEFT_PAREN", "("),
+    else:  # run file
 
-    Token("RIGHT_PAREN", ")"),
+        if len(sys.argv) == 3:  # command provided
 
-    Token("LEFT_BRACE", "{"),
+            command = sys.argv[1]
 
-    Token("RIGHT_BRACE", "}"),
+            filename = sys.argv[2]
 
-    Token("COMMA", ","),
+        else:
 
-    Token("DOT", "."),
+            filename = sys.argv[1]
 
-    Token("MINUS", "-"),
+            command = ""
 
-    Token("PLUS", "+"),
+        if command not in ["", "tokenize", "parse", "evaluate", "run"]:
 
-    Token("SEMICOLON", ";"),
+            print(f"Unknown command: {command}", file=sys.stderr)
 
-    Token("STAR", "*"),
+            exit(64)
 
-    Token("DIV", "/"),
+        run_file(filename, command)
 
-    Token("EQUAL", "="),
-
-    Token("BANG", "!"),
-
-    Token("LESS", "<"),
-
-    Token("GREATER", ">"),
-
-]
-
-DOUBLE_CHARACTER_TOKENS = [
-
-    Token("EQUAL_EQUAL", "=="),
-
-    Token("BANG_EQUAL", "!="),
-
-    Token("LESS_EQUAL", "<="),
-
-    Token("GREATER_EQUAL", ">="),
-
-]
-
-class Lexer:
-
-    def __init__(self, data: str) -> None:
-
-        self._data = iter(data)
-
-        self.corr = self.next = None
-
-        self.readChar()
-
-        self.readChar()
-
-    def readChar(self) -> None:
-
-        self.curr = self.next
-
-        self.next = next(self._data, "\0")
-
-    def __bool__(self) -> bool:
-
-        return self.curr != "\0"
-
-def scan(src: str) -> list[Token]:
-
-    global RET
-
-    result = []
-
-    lexer = Lexer(src)
-
-    lineno = 1
-
-    single_char_tokens = {t.repr: t for t in SINGLE_CHARACTER_TOKENS}
-
-    double_char_tokens = {t.repr: t for t in DOUBLE_CHARACTER_TOKENS}
-
-    while lexer:
-
-        c = lexer.curr
-
-        n = lexer.next
-
-        if token := double_char_tokens.get(c + n, None):
-
-            result.append(token)
-
-            lexer.readChar()
-
-            lexer.readChar()
-
-            continue
-
-        if token := single_char_tokens.get(c, None):
-
-            result.append(token)
-
-            lexer.readChar()
-
-            continue
-
-        if c == "\n":
-
-            lineno += 1
-
-            lexer.readChar()
-
-            continue
-
-        print(f"[line {lineno}] Error: Unexpected character: {c}", file=sys.stderr)
-
-        RET = RET_LEXICAL_ERROR
-
-        lexer.readChar()
-
-    result.append(EOF_TOKEN)
-
-    return result
-
-def main():
-
-    if len(sys.argv) < 3:
-
-        print("Usage: ./your_program.sh tokenize <filename>", file=sys.stderr)
-
-        exit(1)
-
-    _, command, filename = sys.argv
-
-    if command != "tokenize":
-
-        print(f"Unknown command: {command}", file=sys.stderr)
-
-        exit(1)
+def run_file(filename: str, command: str = "") -> None:
 
     with open(filename) as file:
 
         file_contents = file.read()
 
-    tokens = scan(file_contents)
+    match command:
 
-    print(*tokens, sep="\n")
+        case "run":
 
-    exit(RET)
+            run(file_contents)
 
-if __name__ == "__main__":
+        case "evaluate":
 
-    main()
+            run_eval(file_contents)
+
+        case "parse":
+
+            run_parse(file_contents)
+
+        case "tokenize":
+
+            run_tokenize(file_contents)
+
+            # print(f"[SCANNER] done. Error: {error.hadError}", file=sys.stderr)
+
+        case _:
+
+            run(file_contents)
+
+    if error.hadError:
+
+        exit(65)
+
+    if error.hadRuntimeError:
+
+        exit(70)
+
+def run_prompt() -> None:
+
+    while True:
+
+        try:
+
+            prompt = input("> ")
+
+            run(prompt)
+
+            error.hadError = False
+
+        except EOFError:
+
+            break
+
+def run_tokenize(source: str) -> None:
+
+    scanner = Scanner(source)
+
+    tokens = scanner.scanTokens()
+
+    for token in tokens:
+
+        print(token)
+
+def run_parse(source: str) -> None:
+
+    scanner = Scanner(source)
+
+    tokens = scanner.scanTokens()
+
+    parser = Parser(tokens)
+
+    expression = parser.parse_expr()
+
+    if error.hadError or expression is None:
+
+        return
+
+    print(AstPrinter({}).print(expression))
+
+def run_eval(source: str) -> None:
+
+    scanner = Scanner(source)
+
+    tokens = scanner.scanTokens()
+
+    parser = Parser(tokens)
+
+    expression = parser.parse_expr()
+
+    if error.hadError or expression is None:
+
+        return
+
+    interpreter.interpret_expr(expression)
+
+def run(source: str) -> None:
+
+    scanner = Scanner(source)
+
+    tokens = scanner.scanTokens()
+
+    parser = Parser(tokens)
+
+    statements = parser.parse()
+
+    # for i, s in enumerate(statements):
+
+    #     print(f"[Stmt {i}] {printer.print(s)}")
+
+    if error.hadError:
+
+        return
+
+    interpreter.interpret(statements)
+
+main()
