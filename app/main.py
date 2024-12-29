@@ -1,105 +1,160 @@
+import enum
+
 import sys
 
-def scanning(lines):
+RET = 0
 
-    mapping = {
+RET_LEXICAL_ERROR = 65
 
-        "(": "LEFT_PAREN ( null",
+class Token:
 
-        ")": "RIGHT_PAREN ) null",
+    __slots__ = ("type", "repr")
 
-        "{": "LEFT_BRACE { null",
+    def __init__(self, type: str, repr: str) -> None:
 
-        "}": "RIGHT_BRACE } null",
+        self.type = type
 
-        "*": "STAR * null",
+        self.repr = repr
 
-        ".": "DOT . null",
+    def __str__(self) -> str:
 
-        ",": "COMMA , null",
+        return f"{self.type} {self.repr} null"
 
-        "+": "PLUS + null",
+EOF_TOKEN = Token("EOF", "")
 
-        "-": "MINUS - null",
+SINGLE_CHARACTER_TOKENS = [
 
-        ";": "SEMICOLON ; null",
+    Token("LEFT_PAREN", "("),
 
-        "=": "EQUAL = null",
+    Token("RIGHT_PAREN", ")"),
 
-        "==": "EQUAL_EQUAL == null",
+    Token("LEFT_BRACE", "{"),
 
-        "!": "BANG ! null",
+    Token("RIGHT_BRACE", "}"),
 
-        "!=": "BANG_EQUAL != null",
+    Token("COMMA", ","),
 
-        "<": "LESS < null",
+    Token("DOT", "."),
 
-        "<=": "LESS_EQUAL <= null",
+    Token("MINUS", "-"),
 
-        ">": "GREATER > null",
+    Token("PLUS", "+"),
 
-        ">=": "GREATER_EQUAL >= null",
+    Token("SEMICOLON", ";"),
 
-    }
+    Token("STAR", "*"),
 
-    can_read_next = set("=!<>")
+    Token("DIV", "/"),
 
-    has_error = 0
+    Token("EQUAL", "="),
 
-    read_two_tokens = False
+    Token("BANG", "!"),
 
-    for line, contents in enumerate(lines):
+    Token("LESS", "<"),
 
-        for i, c in enumerate(contents):
+    Token("GREATER", ">"),
 
-            if read_two_tokens:
+]
 
-                read_two_tokens = False
+DOUBLE_CHARACTER_TOKENS = [
 
-                continue
+    Token("EQUAL_EQUAL", "=="),
 
-            try:
+    Token("BANG_EQUAL", "!="),
 
-                if (
-                    c in can_read_next
+    Token("LESS_EQUAL", "<="),
 
-                    and i + 1 < len(contents)
+    Token("GREATER_EQUAL", ">="),
 
-                    and contents[i + 1] == "="
+]
 
-                ):
+class Lexer:
 
-                    print(mapping[contents[i : i + 2]])
+    def __init__(self, data: str) -> None:
 
-                    read_two_tokens = True
+        self._data = iter(data)
 
-                else:
+        self.corr = self.next = None
 
-                    print(mapping[c])
+        self.readChar()
 
-            except KeyError:
+        self.readChar()
 
-                has_error = 65
+    def readChar(self) -> None:
 
-                sys.stderr.write(f"[line {line+1}] Error: Unexpected character: {c}\n")
+        self.curr = self.next
 
-        else:
+        self.next = next(self._data, "\0")
 
-            print("EOF  null")
+    def __bool__(self) -> bool:
 
-    exit(has_error)
+        return self.curr != "\0"
+
+def scan(src: str) -> list[Token]:
+
+    global RET
+
+    result = []
+
+    lexer = Lexer(src)
+
+    lineno = 1
+
+    single_char_tokens = {t.repr: t for t in SINGLE_CHARACTER_TOKENS}
+
+    double_char_tokens = {t.repr: t for t in DOUBLE_CHARACTER_TOKENS}
+
+    while lexer:
+
+        c = lexer.curr
+
+        n = lexer.next
+
+        if token := double_char_tokens.get(c + n, None):
+
+            result.append(token)
+
+            lexer.readChar()
+
+            lexer.readChar()
+
+            continue
+
+        if token := single_char_tokens.get(c, None):
+
+            result.append(token)
+
+            lexer.readChar()
+
+            continue
+
+        if c == "\n":
+
+            lineno += 1
+
+            lexer.readChar()
+
+            continue
+
+        print(f"[line {lineno}] Error: Unexpected character: {c}", file=sys.stderr)
+
+        RET = RET_LEXICAL_ERROR
+
+        lexer.readChar()
+
+    result.append(EOF_TOKEN)
+
+    return result
 
 def main():
 
-     if len(sys.argv) < 3:
+    if len(sys.argv) < 3:
 
         print("Usage: ./your_program.sh tokenize <filename>", file=sys.stderr)
 
         exit(1)
 
-    command = sys.argv[1]
-
-    filename = sys.argv[2]
+    _, command, filename = sys.argv
 
     if command != "tokenize":
 
@@ -109,21 +164,13 @@ def main():
 
     with open(filename) as file:
 
-        file_contents = file.readlines()
+        file_contents = file.read()
 
-    # Uncomment this block to pass the first stage
+    tokens = scan(file_contents)
 
-    if file_contents:
+    print(*tokens, sep="\n")
 
-        scanning(file_contents)
-
-    else:
-
-        print(
-
-            "EOF  null"
-
-        )  # Placeholder, remove this line when implementing the scanner
+    exit(RET)
 
 if __name__ == "__main__":
 
