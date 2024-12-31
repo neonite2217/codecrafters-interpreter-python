@@ -1,181 +1,199 @@
-from typing import Callable, Dict, List, Optional
+import sys
 
-from app.token_type import TokenType
+def main():
 
-from app.token import Token
+    # You can use print statements as follows for debugging, they'll be visible when running tests.
 
-from app.lox import Lox
+    # print("Logs from your program will appear here!", file=sys.stderr)
 
-class Scanner:
+    if len(sys.argv) < 3:
 
-    def __init__(self, source: str):
+        print("Usage: ./your_program.sh tokenize <filename>", file=sys.stderr)
 
-        self.source: str = source
+        exit(1)
 
-        self.tokens: List[Token] = []
+    command = sys.argv[1]
 
-        self.start: int = 0
+    filename = sys.argv[2]
 
-        self.current: int = 0
+    if command != "tokenize":
 
-        self.line: int = 1
+        print(f"Unknown command: {command}", file=sys.stderr)
 
-        self.token_actions: Dict[str, Callable[[], None]] = {
+        exit(1)
 
-            "(": lambda: self.add_token(TokenType.LEFT_PAREN),
+    with open(filename) as file:
 
-            ")": lambda: self.add_token(TokenType.RIGHT_PAREN),
+        file_contents = file.read()
 
-            "{": lambda: self.add_token(TokenType.LEFT_BRACE),
+    # Uncomment this block to pass the first stage
 
-            "}": lambda: self.add_token(TokenType.RIGHT_BRACE),
+    line = 1
 
-            ",": lambda: self.add_token(TokenType.COMMA),
+    error = False
 
-            ".": lambda: self.add_token(TokenType.DOT),
+    length = len(file_contents)
 
-            "-": lambda: self.add_token(TokenType.MINUS),
+    i = 0
 
-            "+": lambda: self.add_token(TokenType.PLUS),
+    if file_contents:
 
-            ";": lambda: self.add_token(TokenType.SEMICOLON),
+        while i < length:
 
-            "*": lambda: self.add_token(TokenType.STAR),
-
-            "!": lambda: self.add_token(
-
-                TokenType.BANG_EQUAL if self.match("=") else TokenType.BANG
-
-            ),
-
-            "=": lambda: self.add_token(
-
-                TokenType.EQUAL_EQUAL if self.match("=") else TokenType.EQUAL
-
-            ),
-
-            "<": lambda: self.add_token(
-
-                TokenType.LESS_EQUAL if self.match("=") else TokenType.LESS
-
-            ),
-
-            ">": lambda: self.add_token(
-
-                TokenType.GREATER_EQUAL if self.match("=") else TokenType.GREATER
-
-            ),
-
-            "/": self.handle_slash,
-
-            '"': self.handle_string,
-
-        }
-
-    def scan_tokens(self) -> List[Token]:
-
-        while not self.is_at_end():
-
-            self.start = self.current
-
-            self.scan_token()
-
-        self.tokens.append(Token(TokenType.EOF, "", None, self.line))
-
-        return self.tokens
-
-    def is_at_end(self) -> bool:
-
-        return self.current >= len(self.source)
-
-    def scan_token(self) -> None:
-
-        c: str = self.advance()
-
-        if action := self.token_actions.get(c):
-
-            action()
-
-        elif c.isspace():
+            c = file_contents[i]
 
             if c == "\n":
 
-                self.line += 1
+                line += 1
 
-        else:
+            elif c == " " or c == "\r" or c == "\t":
 
-            Lox.error(self.line, f"Unexpected character: {c}")
+                pass
 
-    def handle_slash(self) -> None:
+            elif c == "(":
 
-        if self.match("/"):
+                print("LEFT_PAREN ( null")
 
-            # A comment goes until the end of the line.
+            elif c == ")":
 
-            while self.peek() != "\n" and not self.is_at_end():
+                print("RIGHT_PAREN ) null")
 
-                self.advance()
+            elif c == "{":
 
-        else:
+                print("LEFT_BRACE { null")
 
-            self.add_token(TokenType.SLASH)
+            elif c == "}":
 
-    def handle_string(self) -> None:
+                print("RIGHT_BRACE } null")
 
-        while self.peek() != '"' and not self.is_at_end():
+            elif c == ",":
 
-            if self.peek() == "\n":
+                print("COMMA , null")
 
-                self.line += 1
+            elif c == ";":
 
-            self.advance()
+                print("SEMICOLON ; null")
 
-        if self.is_at_end():
+            elif c == ".":
 
-            Lox.error(self.line, "Unterminated string.")
+                print("DOT . null")
 
-            return
+            elif c == "-":
 
-        # The closing ".
+                print("MINUS - null")
 
-        self.advance()
+            elif c == "+":
 
-        # Trim the surrounding quotes.
+                print("PLUS + null")
 
-        value = self.source[self.start + 1 : self.current - 1]
+            elif c == "*":
 
-        self.add_token(TokenType.STRING, value)
+                print("STAR * null")
 
-    def advance(self) -> str:
+            elif c == "=":
 
-        self.current += 1
+                if i + 1 < length and file_contents[i + 1] == "=":
 
-        return self.source[self.current - 1]
+                    i += 1
 
-    def match(self, expected: str) -> bool:
+                    print("EQUAL_EQUAL == null")
 
-        if self.is_at_end() or self.source[self.current] != expected:
+                else:
 
-            return False
+                    print("EQUAL = null")
 
-        self.current += 1
+            elif c == "!":
 
-        return True
+                if i + 1 < length and file_contents[i + 1] == "=":
 
-    def add_token(self, type: TokenType, literal: Optional[object] = None) -> None:
+                    i += 1
 
-        text: str = self.source[self.start : self.current]
+                    print("BANG_EQUAL != null")
 
-        self.tokens.append(Token(type, text, literal, self.line))
+                else:
 
-    def peek(self) -> str:
+                    print("BANG ! null")
 
-        return "\0" if self.is_at_end() else self.source[self.current]
+            elif c == "<":
 
-    def peek_next(self) -> str:
+                if i + 1 < length and file_contents[i + 1] == "=":
 
-        if self.current + 1 >= len(self.source):
+                    i += 1
 
-            return "\0"
+                    print("LESS_EQUAL <= null")
 
-        return self.source[self.current + 1]
+                else:
+
+                    print("LESS < null")
+
+            elif c == ">":
+
+                if i + 1 < length and file_contents[i + 1] == "=":
+
+                    i += 1
+
+                    print("GREATER_EQUAL >= null")
+
+                else:
+
+                    print("GREATER > null")
+
+            elif c == "/":
+
+                if i + 1 < length and file_contents[i + 1] == "/":
+
+                    while i < length and file_contents[i] != "\n":
+
+                        i += 1
+
+                    line += 1  # we got to /n
+
+                else:
+
+                    print("SLASH / null")
+
+            elif c == '"':
+
+                word = ""
+
+                i += 1
+
+                while i < length and file_contents[i] != '"':
+
+                    word += file_contents[i]
+
+                    i += 1
+
+                if i == length:
+
+                    error = True
+
+                    print(f"[line {line}] Error: Unterminated string.", file=sys.stderr)
+
+                else:
+
+                    print(f'STRING "{word}" {word}')
+
+            else:
+
+                error = True
+
+                print(
+
+                    f"[line {line}] Error: Unexpected character: {c}", file=sys.stderr
+
+                )
+
+            i += 1
+
+    print("EOF  null")
+
+    if error:
+
+        exit(65)
+
+    exit(0)
+
+if __name__ == "__main__":
+
+    main()
