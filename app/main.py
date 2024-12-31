@@ -1,88 +1,52 @@
-import enum
-
-import pathlib
-
 import sys
 
-from typing import Any
+import typing
 
-class TokenType(enum.Enum):
-
-    LEFT_PAREN = "LEFT_PAREN"
-
-    RIGHT_PAREN = "RIGHT_PAREN"
-
-    LEFT_BRACE = "LEFT_BRACE"
-
-    RIGHT_BRACE = "RIGHT_BRACE"
-
-    STAR = "STAR"
-
-    DOT = "DOT"
-
-    COMMA = "COMMA"
-
-    PLUS = "PLUS"
-
-    MINUS = "MINUS"
-
-    SEMICOLON = "SEMICOLON"
-
-    EQUAL = "EQUAL"
-
-    EQUAL_EQUAL = "EQUAL_EQUAL"
-
-    BANG = "BANG"
-
-    BANG_EQUAL = "BANG_EQUAL"
-
-    LESS = "LESS"
-
-    LESS_EQUAL = "LESS_EQUAL"
-
-    GREATER = "GREATER"
-
-    GREATER_EQUAL = "GREATER_EQUAL"
-
-    SLASH = "SLASH"
-
-    STRING = "STRING"
-
-    NUMBER = "NUMBER"
-
-    IDENTIFIER = "IDENTIFIER"
-
-    EOF = "EOF"
-
-class Token:
-
-    def __init__(
-
-        self, type: TokenType, lexeme: str, literal: Any | None, line: int
-
-    ) -> None:
-
-        self.type = type
-
-        self.lexeme = lexeme
-
-        self.literal = literal
-
-        self.line = line
-
-    def __str__(self) -> str:
-
-        literal_str = "null" if self.literal is None else str(self.literal)
-
-        return f"{self.type.value} {self.lexeme} {literal_str}"
+from .grammar import Token, TokenType
 
 class Scanner:
 
-    def __init__(self, source: str) -> None:
+    keywords = {
+
+        "and": TokenType.AND,
+
+        "class": TokenType.CLASS,
+
+        "else": TokenType.ELSE,
+
+        "false": TokenType.FALSE,
+
+        "for": TokenType.FOR,
+
+        "fun": TokenType.FUN,
+
+        "if": TokenType.IF,
+
+        "nil": TokenType.NIL,
+
+        "or": TokenType.OR,
+
+        "print": TokenType.PRINT,
+
+        "return": TokenType.RETURN,
+
+        "super": TokenType.SUPER,
+
+        "this": TokenType.THIS,
+
+        "true": TokenType.TRUE,
+
+        "var": TokenType.VAR,
+
+        "while": TokenType.WHILE,
+
+    }
+
+    def __init__(self, source: str):
 
         self.source = source
 
-        self.tokens: list[Token] = []
+        self.tokens: typing.List[Token] = []
 
         self.start = 0
 
@@ -90,11 +54,23 @@ class Scanner:
 
         self.line = 1
 
-        self.errors: list[str] = []
+        self.had_error = False
 
-    def scan_tokens(self) -> tuple[list[Token], list[str]]:
+    @property
 
-        while not self.is_at_end():
+    def is_at_end(self):
+
+        return self.current >= len(self.source)
+
+    @property
+
+    def text(self):
+
+        return self.source[self.start : self.current]
+
+    def scan_tokens(self):
+
+        while not self.is_at_end:
 
             self.start = self.current
 
@@ -102,17 +78,13 @@ class Scanner:
 
         self.tokens.append(Token(TokenType.EOF, "", None, self.line))
 
-        return self.tokens, self.errors
+        return self.tokens
 
-    def is_at_end(self) -> bool:
+    def scan_token(self):
 
-        return self.current >= len(self.source)
+        character = self.advance()
 
-    def scan_token(self) -> None:
-
-        char = self.advance()
-
-        match char:
+        match character:
 
             case "(":
 
@@ -130,77 +102,81 @@ class Scanner:
 
                 self.add_token(TokenType.RIGHT_BRACE)
 
-            case "*":
+            case ",":
 
-                self.add_token(TokenType.STAR)
+                self.add_token(TokenType.COMMA)
 
             case ".":
 
                 self.add_token(TokenType.DOT)
 
-            case ",":
+            case "-":
 
-                self.add_token(TokenType.COMMA)
+                self.add_token(TokenType.MINUS)
 
             case "+":
 
                 self.add_token(TokenType.PLUS)
 
-            case "-":
-
-                self.add_token(TokenType.MINUS)
-
             case ";":
 
                 self.add_token(TokenType.SEMICOLON)
 
+            case "*":
+
+                self.add_token(TokenType.STAR)
+
             case "!":
 
-                self.add_token(TokenType.BANG_EQUAL) if self.match(
+                self.add_token(
 
-                    "="
+                    TokenType.BANG_EQUAL if self.match("=") else TokenType.BANG
 
-                ) else self.add_token(TokenType.BANG)
+                )
 
             case "=":
 
-                self.add_token(TokenType.EQUAL_EQUAL) if self.match(
+                self.add_token(
 
-                    "="
+                    TokenType.EQUAL_EQUAL if self.match("=") else TokenType.EQUAL
 
-                ) else self.add_token(TokenType.EQUAL)
+                )
 
             case "<":
 
-                self.add_token(TokenType.LESS_EQUAL) if self.match(
+                self.add_token(
 
-                    "="
+                    TokenType.LESS_EQUAL if self.match("=") else TokenType.LESS
 
-                ) else self.add_token(TokenType.LESS)
+                )
 
             case ">":
 
-                self.add_token(TokenType.GREATER_EQUAL) if self.match(
+                self.add_token(
 
-                    "="
+                    TokenType.GREATER_EQUAL if self.match("=") else TokenType.GREATER
 
-                ) else self.add_token(TokenType.GREATER)
+                )
 
             case "/":
 
-                if self.match("/"):
+                self.advance_next_line() if self.match("/") else self.add_token(
 
-                    while self.peek() != "\n" and not self.is_at_end():
+                    TokenType.SLASH
 
-                        self.advance()
+                )
 
-                else:
+            case " ":
 
-                    self.add_token(TokenType.SLASH)
+                pass
 
-            case " " | "\r" | "\t":
+            case "\r":
 
-                ...
+                pass
+
+            case "\t":
+
+                pass
 
             case "\n":
 
@@ -212,45 +188,39 @@ class Scanner:
 
             case _:
 
-                if self.is_digit(char):
+                if self.is_number(character):
 
                     self.number()
 
-                elif self.is_alpha_numeric(char):
+                elif self.is_alpha(character):
 
                     self.identifier()
 
                 else:
 
-                    self.error(f"Unexpected character: {char}")
+                    self.error(self.line, f"Unexpected character: {character}")
 
-    def advance(self) -> str:
+    def peek(self, n=0):
 
-        self.current += 1
+        index = self.current + n
 
-        return self.source[self.current - 1]
-
-    def add_token(self, type: TokenType, literal: Any | None = None) -> None:
-
-        text = self.source[self.start : self.current]
-
-        self.tokens.append(Token(type, text, literal, self.line))
-
-    def peek(self) -> str:
-
-        return "\0" if self.is_at_end() else self.source[self.current]
-
-    def peek_next(self) -> str:
-
-        if self.current + 1 >= len(self.source):
+        if index >= len(self.source):
 
             return "\0"
 
-        return self.source[self.current + 1]
+        return self.source[index]
 
-    def match(self, expected: str) -> bool:
+    def advance(self):
 
-        if self.is_at_end():
+        index = self.current
+
+        self.current += 1
+
+        return self.source[index]
+
+    def match(self, expected: str):
+
+        if self.is_at_end:
 
             return False
 
@@ -262,9 +232,29 @@ class Scanner:
 
         return True
 
-    def string(self) -> None:
+    def advance_next_line(self):
 
-        while self.peek() != '"' and not self.is_at_end():
+        while self.peek() != "\n" and not self.is_at_end:
+
+            self.advance()
+
+    def add_token(self, type: TokenType, literal: typing.Any = None):
+
+        self.tokens.append(Token(type, self.text, literal, self.line))
+
+    def error(self, line: int, message: str):
+
+        self.report(line, "", message)
+
+    def report(self, line: int, where: str, message: str):
+
+        print(f"[line {line}] Error{where}: {message}", file=sys.stderr)
+
+        self.had_error = True
+
+    def string(self):
+
+        while self.peek() != '"' and not self.is_at_end:
 
             if self.peek() == "\n":
 
@@ -272,11 +262,13 @@ class Scanner:
 
             self.advance()
 
-        if self.is_at_end():
+        if self.is_at_end:
 
-            self.errors.append(f"[line {self.line}] Error: Unterminated string.")
+            self.error(self.line, "Unterminated string.")
 
             return
+
+        # closing "
 
         self.advance()
 
@@ -284,47 +276,49 @@ class Scanner:
 
         self.add_token(TokenType.STRING, value)
 
-    def is_digit(self, char: str) -> bool:
+    def number(self):
 
-        return char >= "0" and char <= "9"
-
-    def number(self) -> None:
-
-        while self.is_digit(self.peek()):
+        while self.is_number(self.peek()):
 
             self.advance()
 
-        if self.peek() == "." and self.is_digit(self.peek_next()):
+        if self.peek() == "." and self.is_number(self.peek(1)):
+
+            # consume .
 
             self.advance()
 
-        while self.is_digit(self.peek()):
+            while self.is_number(self.peek()):
+
+                self.advance()
+
+        value = float(self.text)
+
+        self.add_token(TokenType.NUMBER, value)
+
+    def identifier(self):
+
+        while self.is_alpha_or_number(self.peek()):
 
             self.advance()
 
-        self.add_token(TokenType.NUMBER, float(self.source[self.start : self.current]))
+        type = self.keywords.get(self.text, TokenType.IDENTIFIER)
 
-    def is_alpha(self, char: str) -> bool:
+        self.add_token(type)
 
-        return char >= "a" and char <= "z" or char >= "A" and char <= "Z" or char == "_"
+    def is_number(self, character: str):
 
-    def is_alpha_numeric(self, char: str) -> bool:
+        return character.isnumeric()
 
-        return self.is_alpha(char) or self.is_digit(char)
+    def is_alpha(self, character: str):
 
-    def identifier(self) -> None:
+        return character.isalpha() or character == "_"
 
-        while self.is_alpha_numeric(self.peek()):
+    def is_alpha_or_number(self, character: str):
 
-            self.advance()
+        return self.is_number(character) or self.is_alpha(character)
 
-        self.add_token(TokenType.IDENTIFIER)
-
-    def error(self, char: str) -> None:
-
-        self.errors.append(f"[line {self.line}] Error: {char}")
-
-def main() -> None:
+def main():
 
     if len(sys.argv) < 3:
 
@@ -342,21 +336,25 @@ def main() -> None:
 
         exit(1)
 
-    file_contents = pathlib.Path(filename).read_text()
+    with open(filename) as file:
+
+        file_contents = file.read()
 
     scanner = Scanner(file_contents)
 
-    tokens, errors = scanner.scan_tokens()
+    tokens = scanner.scan_tokens()
 
     for token in tokens:
 
-        print(token)
+        literal = token.literal
 
-    for error in errors:
+        if literal is None:
 
-        print(error, file=sys.stderr)
+            literal = "null"
 
-    if errors:
+        print(f"{token.type.name} {token.lexeme} {literal}")
+
+    if scanner.had_error:
 
         exit(65)
 
