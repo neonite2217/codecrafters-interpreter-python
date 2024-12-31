@@ -1,114 +1,52 @@
 import sys
 
-import os
+operators = {
 
-def match_keyword(char, line_number=1):
+    "+": "PLUS",
 
-    match char:
+    "-": "MINUS",
 
-        case "(":
+    "*": "STAR",
 
-            return f"LEFT_PAREN {char} null", True
+    "/": "SLASH",
 
-        case ")":
+    "(": "LEFT_PAREN",
 
-            return f"RIGHT_PAREN {char} null", True
+    ")": "RIGHT_PAREN",
 
-        case "{":
+    "{": "LEFT_BRACE",
 
-            return f"LEFT_BRACE {char} null", True
+    "}": "RIGHT_BRACE",
 
-        case "}":
+    ",": "COMMA",
 
-            return f"RIGHT_BRACE {char} null", True
+    ";": "SEMICOLON",
 
-        case ",":
+    ".": "DOT",
 
-            return f"COMMA {char} null", True
+    "=": "EQUAL",
 
-        case ".":
+    "!": "BANG",
 
-            return f"DOT {char} null", True
+    ">": "GREATER",
 
-        case ";":
+    "<": "LESS",
 
-            return f"SEMICOLON {char} null", True
+}
 
-        case "+":
+def append_token(token, string, count_chr, operator, dual_op=None):
 
-            return f"PLUS {char} null", True
+    if dual_op and count_chr + 1 < len(string) and string[count_chr + 1] == "=":
 
-        case "*":
+        token.append(f"{operator}_EQUAL {dual_op} null")
 
-            return f"STAR {char} null", True
+        return count_chr + 1
 
-        case "-":
+    token.append(f"{operators[string[count_chr]]} {string[count_chr]} null")
 
-            return f"MINUS {char} null", True
-
-        case "":
-
-            return f"EOF {char} null", True
-
-        case "==":
-
-            return f"EQUAL_EQUAL {char} null", True
-
-        case "!=":
-
-            return f"BANG_EQUAL {char} null", True
-
-        case "<":
-
-            return f"LESS {char} null", True
-
-        case "<=":
-
-            return f"LESS_EQUAL {char} null", True
-
-        case ">":
-
-            return f"GREATER {char} null", True
-
-        case ">=":
-
-            return f"GREATER_EQUAL {char} null", True
-
-        case "!":
-
-            return f"BANG {char} null", True
-
-        case "=":
-
-            return f"EQUAL {char} null", True
-
-        case "/":
-
-            return f"SLASH {char} null", True
-
-        case _:
-
-            return f"[line {line_number}] Error: Unexpected character: {char}", False
-
-def print_token(return_str, not_error=True):
-
-    if not_error:
-
-        print(return_str)
-
-        return None
-
-    else:
-
-        print(return_str, file=sys.stderr)
-
-        return 65
+    return count_chr
 
 def main():
-
-    # You can use print statements as follows for debugging, they'll be visible when running tests.
-
-    # print("Logs from your program will appear here!", file=sys.stderr)
 
     if len(sys.argv) < 3:
 
@@ -116,9 +54,7 @@ def main():
 
         exit(1)
 
-    command = sys.argv[1]
-
-    filename = sys.argv[2]
+    command, filename = sys.argv[1], sys.argv[2]
 
     if command != "tokenize":
 
@@ -126,103 +62,79 @@ def main():
 
         exit(1)
 
-    if not os.path.exists(filename):
+    with open(filename) as file:
 
-        file_contents = filename
+        file_contents = file.read()
 
-    else:
+    errorcode, error_message, token = 0, [], []
 
-        with open(filename) as file:
+    for line_number, string in enumerate(file_contents.split("\n")):
 
-            file_contents = file.read()
+        count_chr = 0
 
-    # Uncomment this block to pass the first stage
+        while count_chr < len(string):
 
-    if file_contents:
+            if string[count_chr] in operators:
 
-        res = None
+                if string[count_chr] == "=":
 
-        error_code = None
+                    count_chr = append_token(token, string, count_chr, "EQUAL", "==")
 
-        i = 0
+                elif string[count_chr] == "!":
 
-        # print(file_contents)
+                    count_chr = append_token(token, string, count_chr, "BANG", "!=")
 
-        while i < len(file_contents):
+                elif string[count_chr] == ">":
 
-            char = file_contents[i]
+                    count_chr = append_token(token, string, count_chr, "GREATER", ">=")
 
-            if char in ["=", "!"]:
+                elif string[count_chr] == "<":
 
-                # print(f"LEN FILE CONTENTS {len(file_contents)} and i+1 {i+1}")
+                    count_chr = append_token(token, string, count_chr, "LESS", "<=")
 
-                if len(file_contents) > i + 1 and file_contents[i + 1] == "=":
+                elif string[count_chr] == "/":
 
-                    res = print_token(
+                    if count_chr + 1 < len(string) and string[count_chr + 1] == "/":
 
-                        *match_keyword(f"{file_contents[i]}{file_contents[i+1]}")
+                        break
+
+                    count_chr = append_token(token, string, count_chr, "SLASH")
+
+                else:
+
+                    token.append(
+
+                        f"{operators[string[count_chr]]} {string[count_chr]} null"
 
                     )
 
-                    i += 1
+            elif string[count_chr] in [" ", "\t"]:
 
-                else:
+                line_number += 1
 
-                    res = print_token(*match_keyword(char))
-
-            elif char in ["<", ">"]:
-
-                if len(file_contents) > i + 1 and file_contents[i + 1] == "=":
-
-                    res = print_token(
-
-                        *match_keyword(f"{file_contents[i]}{file_contents[i+1]}")
-
-                    )
-
-                    i += 1
-
-                else:
-
-                    res = print_token(*match_keyword(char))
-
-            elif char in ["/"]:
-
-                if len(file_contents) > i + 1 and file_contents[i + 1] == "/":
-
-                    while i < len(file_contents) and file_contents[i] != "\n":
-
-                        i += 1
-
-                else:
-
-                    res = print_token(*match_keyword(char))
+                pass
 
             else:
 
-                res = print_token(*match_keyword(char))
+                errorcode = 65
 
-            i += 1
+                error_message.append(
 
-            error_code = error_code if error_code is not None else res
+                    f"[line {line_number + 1}] Error: Unexpected character: {string[count_chr]}"
 
-        print("EOF  null")
+                )
 
-        if error_code:
+            count_chr += 1
 
-            exit(error_code)
+    token.append("EOF  null")
 
-        else:
+    if error_message:
 
-            exit(0)
+        print("\n".join(error_message), file=sys.stderr)
 
-    else:
+    print("\n".join(token))
 
-        print(
-
-            "EOF  null"
-
-        )  # Placeholder, remove this line when implementing the scanner
+    exit(errorcode)
 
 if __name__ == "__main__":
 
