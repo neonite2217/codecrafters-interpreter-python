@@ -1,5 +1,59 @@
 import sys
 
+# match char:
+
+#     case "(":
+
+#         token.update({"LEFT_PAREN": "("});
+
+#     case ")":
+
+#         token.update({"RIGHT_PAREN": ")"});
+
+#     case "{":
+
+#         token.update({"LEFT_BRACE": "{"});
+
+#     case "}":
+
+#         token.update({"RIGHT_BRACE": "}"});
+
+#     case "+":
+
+#         token.update({"PLUS": "+"});
+
+#     case "-":
+
+#         token.update({"MINUS": "-"});
+
+#     case "*":
+
+#         token.update({"STAR": "*"});
+
+#     case "/":
+
+#         token.update({"SLASH": "/"});
+
+#     case ".":
+
+#         token.update({"DOT": "."});
+
+#     case ",":
+
+#         token.update({"COMMA": ","});
+
+#     case ";":
+
+#         token.update({"SEMICOLON":";"})
+
+#     case _:
+
+#         if not char.isspace():
+
+#             error_.update({count:char})
+
+#             count+=1
+
 operators = {
 
     "+": "PLUS",
@@ -34,19 +88,11 @@ operators = {
 
 }
 
-def append_token(token, string, count_chr, operator, dual_op=None):
-
-    if dual_op and count_chr + 1 < len(string) and string[count_chr + 1] == "=":
-
-        token.append(f"{operator}_EQUAL {dual_op} null")
-
-        return count_chr + 1
-
-    token.append(f"{operators[string[count_chr]]} {string[count_chr]} null")
-
-    return count_chr
-
 def main():
+
+    lines_of_code = 1
+
+    count = 0
 
     if len(sys.argv) < 3:
 
@@ -54,7 +100,9 @@ def main():
 
         exit(1)
 
-    command, filename = sys.argv[1], sys.argv[2]
+    command = sys.argv[1]
+
+    filename = sys.argv[2]
 
     if command != "tokenize":
 
@@ -66,7 +114,11 @@ def main():
 
         file_contents = file.read()
 
-    errorcode, error_message, token = 0, [], []
+    errorcode = 0
+
+    error_message = []
+
+    token = []
 
     for line_number, string in enumerate(file_contents.split("\n")):
 
@@ -76,43 +128,101 @@ def main():
 
             if string[count_chr] in operators:
 
-                if string[count_chr] == "=":
+                match (string[count_chr]):
 
-                    count_chr = append_token(token, string, count_chr, "EQUAL", "==")
+                    case "=":
 
-                elif string[count_chr] == "!":
+                        if count_chr + 1 < len(string) and string[count_chr + 1] == "=":
 
-                    count_chr = append_token(token, string, count_chr, "BANG", "!=")
+                            token.append(f"EQUAL_EQUAL == null")
 
-                elif string[count_chr] == ">":
+                            count_chr += 1
 
-                    count_chr = append_token(token, string, count_chr, "GREATER", ">=")
+                        else:
 
-                elif string[count_chr] == "<":
+                            token.append(
 
-                    count_chr = append_token(token, string, count_chr, "LESS", "<=")
+                                f"{operators[string[count_chr]]} {string[count_chr]} null"
 
-                elif string[count_chr] == "/":
+                            )
 
-                    if count_chr + 1 < len(string) and string[count_chr + 1] == "/":
+                    case "!":
 
-                        break
+                        if count_chr + 1 < len(string) and string[count_chr + 1] == "=":
 
-                    count_chr = append_token(token, string, count_chr, "SLASH")
+                            token.append(f"BANG_EQUAL != null")
 
-                else:
+                            count_chr += 1
 
-                    token.append(
+                        else:
 
-                        f"{operators[string[count_chr]]} {string[count_chr]} null"
+                            token.append(
 
-                    )
+                                f"{operators[string[count_chr]]} {string[count_chr]} null"
+
+                            )
+
+                    case ">":
+
+                        if count_chr + 1 < len(string) and string[count_chr + 1] == "=":
+
+                            token.append(f"GREATER_EQUAL >= null")
+
+                            count_chr += 1
+
+                        else:
+
+                            token.append(
+
+                                f"{operators[string[count_chr]]} {string[count_chr]} null"
+
+                            )
+
+                    case "<":
+
+                        if count_chr + 1 < len(string) and string[count_chr + 1] == "=":
+
+                            token.append(f"LESS_EQUAL <= null")
+
+                            count_chr += 1
+
+                        else:
+
+                            token.append(
+
+                                f"{operators[string[count_chr]]} {string[count_chr]} null"
+
+                            )
+
+                    case "/":
+
+                        if count_chr + 1 < len(string) and string[count_chr + 1] == "/":
+
+                            count_chr += len(string[2:]) + 1
+
+                            pass
+
+                        else:
+
+                            token.append(
+
+                                f"{operators[string[count_chr]]} {string[count_chr]} null"
+
+                            )
+
+                    case _:
+
+                        token.append(
+
+                            f"{operators[string[count_chr]]} {string[count_chr]} null"
+
+                        )
 
             elif string[count_chr] in [" ", "\t"]:
 
-                line_number += 1
+                count_chr += 1
 
-                pass
+                continue
 
             else:
 
@@ -128,9 +238,7 @@ def main():
 
     token.append("EOF  null")
 
-    if error_message:
-
-        print("\n".join(error_message), file=sys.stderr)
+    print("\n".join(error_message), file=sys.stderr)
 
     print("\n".join(token))
 
