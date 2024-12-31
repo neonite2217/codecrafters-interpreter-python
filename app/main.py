@@ -1,249 +1,181 @@
-import sys
+from typing import Callable, Dict, List, Optional
 
-# match char:
+from app.token_type import TokenType
 
-#     case "(":
+from app.token import Token
 
-#         token.update({"LEFT_PAREN": "("});
+from app.lox import Lox
 
-#     case ")":
+class Scanner:
 
-#         token.update({"RIGHT_PAREN": ")"});
+    def __init__(self, source: str):
 
-#     case "{":
+        self.source: str = source
 
-#         token.update({"LEFT_BRACE": "{"});
+        self.tokens: List[Token] = []
 
-#     case "}":
+        self.start: int = 0
 
-#         token.update({"RIGHT_BRACE": "}"});
+        self.current: int = 0
 
-#     case "+":
+        self.line: int = 1
 
-#         token.update({"PLUS": "+"});
+        self.token_actions: Dict[str, Callable[[], None]] = {
 
-#     case "-":
+            "(": lambda: self.add_token(TokenType.LEFT_PAREN),
 
-#         token.update({"MINUS": "-"});
+            ")": lambda: self.add_token(TokenType.RIGHT_PAREN),
 
-#     case "*":
+            "{": lambda: self.add_token(TokenType.LEFT_BRACE),
 
-#         token.update({"STAR": "*"});
+            "}": lambda: self.add_token(TokenType.RIGHT_BRACE),
 
-#     case "/":
+            ",": lambda: self.add_token(TokenType.COMMA),
 
-#         token.update({"SLASH": "/"});
+            ".": lambda: self.add_token(TokenType.DOT),
 
-#     case ".":
+            "-": lambda: self.add_token(TokenType.MINUS),
 
-#         token.update({"DOT": "."});
+            "+": lambda: self.add_token(TokenType.PLUS),
 
-#     case ",":
+            ";": lambda: self.add_token(TokenType.SEMICOLON),
 
-#         token.update({"COMMA": ","});
+            "*": lambda: self.add_token(TokenType.STAR),
 
-#     case ";":
+            "!": lambda: self.add_token(
 
-#         token.update({"SEMICOLON":";"})
+                TokenType.BANG_EQUAL if self.match("=") else TokenType.BANG
 
-#     case _:
+            ),
 
-#         if not char.isspace():
+            "=": lambda: self.add_token(
 
-#             error_.update({count:char})
+                TokenType.EQUAL_EQUAL if self.match("=") else TokenType.EQUAL
 
-#             count+=1
+            ),
 
-operators = {
+            "<": lambda: self.add_token(
 
-    "+": "PLUS",
+                TokenType.LESS_EQUAL if self.match("=") else TokenType.LESS
 
-    "-": "MINUS",
+            ),
 
-    "*": "STAR",
+            ">": lambda: self.add_token(
 
-    "/": "SLASH",
+                TokenType.GREATER_EQUAL if self.match("=") else TokenType.GREATER
 
-    "(": "LEFT_PAREN",
+            ),
 
-    ")": "RIGHT_PAREN",
+            "/": self.handle_slash,
 
-    "{": "LEFT_BRACE",
+            '"': self.handle_string,
 
-    "}": "RIGHT_BRACE",
+        }
 
-    ",": "COMMA",
+    def scan_tokens(self) -> List[Token]:
 
-    ";": "SEMICOLON",
+        while not self.is_at_end():
 
-    ".": "DOT",
+            self.start = self.current
 
-    "=": "EQUAL",
+            self.scan_token()
 
-    "!": "BANG",
+        self.tokens.append(Token(TokenType.EOF, "", None, self.line))
 
-    ">": "GREATER",
+        return self.tokens
 
-    "<": "LESS",
+    def is_at_end(self) -> bool:
 
-}
+        return self.current >= len(self.source)
 
-def main():
+    def scan_token(self) -> None:
 
-    lines_of_code = 1
+        c: str = self.advance()
 
-    count = 0
+        if action := self.token_actions.get(c):
 
-    if len(sys.argv) < 3:
+            action()
 
-        print("Usage: ./your_program.sh tokenize <filename>", file=sys.stderr)
+        elif c.isspace():
 
-        exit(1)
+            if c == "\n":
 
-    command = sys.argv[1]
+                self.line += 1
 
-    filename = sys.argv[2]
+        else:
 
-    if command != "tokenize":
+            Lox.error(self.line, f"Unexpected character: {c}")
 
-        print(f"Unknown command: {command}", file=sys.stderr)
+    def handle_slash(self) -> None:
 
-        exit(1)
+        if self.match("/"):
 
-    with open(filename) as file:
+            # A comment goes until the end of the line.
 
-        file_contents = file.read()
+            while self.peek() != "\n" and not self.is_at_end():
 
-    errorcode = 0
+                self.advance()
 
-    error_message = []
+        else:
 
-    token = []
+            self.add_token(TokenType.SLASH)
 
-    for line_number, string in enumerate(file_contents.split("\n")):
+    def handle_string(self) -> None:
 
-        count_chr = 0
+        while self.peek() != '"' and not self.is_at_end():
 
-        while count_chr < len(string):
+            if self.peek() == "\n":
 
-            if string[count_chr] in operators:
+                self.line += 1
 
-                match (string[count_chr]):
+            self.advance()
 
-                    case "=":
+        if self.is_at_end():
 
-                        if count_chr + 1 < len(string) and string[count_chr + 1] == "=":
+            Lox.error(self.line, "Unterminated string.")
 
-                            token.append(f"EQUAL_EQUAL == null")
+            return
 
-                            count_chr += 1
+        # The closing ".
 
-                        else:
+        self.advance()
 
-                            token.append(
+        # Trim the surrounding quotes.
 
-                                f"{operators[string[count_chr]]} {string[count_chr]} null"
+        value = self.source[self.start + 1 : self.current - 1]
 
-                            )
+        self.add_token(TokenType.STRING, value)
 
-                    case "!":
+    def advance(self) -> str:
 
-                        if count_chr + 1 < len(string) and string[count_chr + 1] == "=":
+        self.current += 1
 
-                            token.append(f"BANG_EQUAL != null")
+        return self.source[self.current - 1]
 
-                            count_chr += 1
+    def match(self, expected: str) -> bool:
 
-                        else:
+        if self.is_at_end() or self.source[self.current] != expected:
 
-                            token.append(
+            return False
 
-                                f"{operators[string[count_chr]]} {string[count_chr]} null"
+        self.current += 1
 
-                            )
+        return True
 
-                    case ">":
+    def add_token(self, type: TokenType, literal: Optional[object] = None) -> None:
 
-                        if count_chr + 1 < len(string) and string[count_chr + 1] == "=":
+        text: str = self.source[self.start : self.current]
 
-                            token.append(f"GREATER_EQUAL >= null")
+        self.tokens.append(Token(type, text, literal, self.line))
 
-                            count_chr += 1
+    def peek(self) -> str:
 
-                        else:
+        return "\0" if self.is_at_end() else self.source[self.current]
 
-                            token.append(
+    def peek_next(self) -> str:
 
-                                f"{operators[string[count_chr]]} {string[count_chr]} null"
+        if self.current + 1 >= len(self.source):
 
-                            )
+            return "\0"
 
-                    case "<":
-
-                        if count_chr + 1 < len(string) and string[count_chr + 1] == "=":
-
-                            token.append(f"LESS_EQUAL <= null")
-
-                            count_chr += 1
-
-                        else:
-
-                            token.append(
-
-                                f"{operators[string[count_chr]]} {string[count_chr]} null"
-
-                            )
-
-                    case "/":
-
-                        if count_chr + 1 < len(string) and string[count_chr + 1] == "/":
-
-                            count_chr += len(string[2:]) + 1
-
-                            pass
-
-                        else:
-
-                            token.append(
-
-                                f"{operators[string[count_chr]]} {string[count_chr]} null"
-
-                            )
-
-                    case _:
-
-                        token.append(
-
-                            f"{operators[string[count_chr]]} {string[count_chr]} null"
-
-                        )
-
-            elif string[count_chr] in [" ", "\t"]:
-
-                count_chr += 1
-
-                continue
-
-            else:
-
-                errorcode = 65
-
-                error_message.append(
-
-                    f"[line {line_number + 1}] Error: Unexpected character: {string[count_chr]}"
-
-                )
-
-            count_chr += 1
-
-    token.append("EOF  null")
-
-    print("\n".join(error_message), file=sys.stderr)
-
-    print("\n".join(token))
-
-    exit(errorcode)
-
-if __name__ == "__main__":
-
-    main()
+        return self.source[self.current + 1]
