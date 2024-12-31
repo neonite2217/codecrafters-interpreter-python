@@ -50,6 +50,8 @@ class TokenType(enum.Enum):
 
     NUMBER = "NUMBER"
 
+    IDENTIFIER = "IDENTIFIER"
+
     EOF = "EOF"
 
 class Token:
@@ -214,6 +216,10 @@ class Scanner:
 
                     self.number()
 
+                elif self.is_alpha_numeric(char):
+
+                    self.identifier()
+
                 else:
 
                     self.error(f"Unexpected character: {char}")
@@ -297,6 +303,22 @@ class Scanner:
             self.advance()
 
         self.add_token(TokenType.NUMBER, float(self.source[self.start : self.current]))
+
+    def is_alpha(self, char: str) -> bool:
+
+        return char >= "a" and char <= "z" or char >= "A" and char <= "Z" or char == "_"
+
+    def is_alpha_numeric(self, char: str) -> bool:
+
+        return self.is_alpha(char) or self.is_digit(char)
+
+    def identifier(self) -> None:
+
+        while self.is_alpha_numeric(self.peek()):
+
+            self.advance()
+
+        self.add_token(TokenType.IDENTIFIER)
 
     def error(self, char: str) -> None:
 
