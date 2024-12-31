@@ -1,5 +1,3 @@
-
-
 import sys
 
 import re
@@ -528,7 +526,6 @@ class Lexer:
 
                 return self.next_string()
 
-
             case _:
 
                 if self.c.isalpha() or self.c == "_":
@@ -557,7 +554,15 @@ def Binary(left, operator, right):
 
 def Grouping(expression):
 
-    return {"expression": expression}
+    if not expression:
+
+        global exit_code
+
+        exit_code = 65
+
+        return ""
+
+    return f"(group {expression})"
 
 def Literal(value):
 
@@ -735,6 +740,20 @@ class Parser:
 
             return Grouping(expr)
 
+    def consume(self, token_type, message):
+
+        if self.check(token_type):
+
+            return self.advance()
+
+        global exit_code
+
+        exit_code = 65
+
+        print(message, file=sys.stderr)
+
+        exit(exit_code)
+
 def main():
 
     # You can use print statements as follows for debugging, they'll be visible when running tests.
@@ -762,7 +781,6 @@ def main():
     with open(filename) as file:
 
         file_contents = file.read()
-
 
         if command == "tokenize":
 
