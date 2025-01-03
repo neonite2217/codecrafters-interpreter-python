@@ -10,35 +10,114 @@ class Token:
     def __repr__(self) -> str:
         return f"{self.type} {self.lexeme} {'null' if self.literal is None else self.literal}"
 
-class Environment:
-    def __init__(self, parent=None):
-        self.values = {}
-        self.parent = parent
-
-    def define(self, name, value):
-        self.values[name] = value
-
-    def get(self, name):
-        if name in self.values:
-            return self.values[name]
-        if self.parent:
-            return self.parent.get(name)
-        print(f"Undefined variable '{name}'", file=sys.stderr)
-        exit(70)
-
-    def assign(self, name, value):
-        if name in self.values:
-            self.values[name] = value
-        elif self.parent:
-            self.parent.assign(name, value)
-        else:
-            print(f"Undefined variable '{name}'", file=sys.stderr)
-            exit(70)
-
-ENVIRONMENT = Environment()  # Global environment
+ENVIRONMENT = {}
 
 class Scanner:
-    # (same as before)
+    def __init__(self, source_code) -> None:
+        self.source_code = source_code
+        self.current = 0
+        self.line = 1
+        self.had_error = False
+
+    def scan(self):
+        tokens = []
+        while self.current < len(self.source_code):
+            self.current += 1
+            char = self.source_code[self.current - 1]
+            if char == "(":
+                tokens.append(Token("LEFT_PAREN", "(", None))
+            elif char == ")":
+                tokens.append(Token("RIGHT_PAREN", ")", None))
+            elif char == "{":
+                tokens.append(Token("LEFT_BRACE", "{", None))
+            elif char == "}":
+                tokens.append(Token("RIGHT_BRACE", "}", None))
+            elif char == "*":
+                tokens.append(Token("STAR", "*", None))
+            elif char == ".":
+                tokens.append(Token("DOT", ".", None))
+            elif char == ",":
+                tokens.append(Token("COMMA", ",", None))
+            elif char == "+":
+                tokens.append(Token("PLUS", "+", None))
+            elif char == "-":
+                tokens.append(Token("MINUS", "-", None))
+            elif char == ";":
+                tokens.append(Token("SEMICOLON", ";", None))
+            elif char == "/":
+                if self.current < len(self.source_code) and self.source_code[self.current] == "/":
+                    while self.current < len(self.source_code) and self.source_code[self.current] != "\n":
+                        self.current += 1
+                else:
+                    tokens.append(Token("SLASH", "/", None))
+            elif char == "=":
+                if self.current < len(self.source_code) and self.source_code[self.current] == "=":
+                    tokens.append(Token("EQUAL_EQUAL", "==", None))
+                    self.current += 1
+                else:
+                    tokens.append(Token("EQUAL", "=", None))
+            elif char == "!":
+                if self.current < len(self.source_code) and self.source_code[self.current] == "=":
+                    tokens.append(Token("BANG_EQUAL", "!=", None))
+                    self.current += 1
+                else:
+                    tokens.append(Token("BANG", "!", None))
+            elif char == "<":
+                if self.current < len(self.source_code) and self.source_code[self.current] == "=":
+                    tokens.append(Token("LESS_EQUAL", "<=", None))
+                    self.current += 1
+                else:
+                    tokens.append(Token("LESS", "<", None))
+            elif char == ">":
+                if self.current < len(self.source_code) and self.source_code[self.current] == "=":
+                    tokens.append(Token("GREATER_EQUAL", ">=", None))
+                    self.current += 1
+                else:
+                    tokens.append(Token("GREATER", ">", None))
+            elif char == "\"":
+                string_start = self.current
+                while self.current < len(self.source_code) and self.source_code[self.current] != '"':
+                    self.current += 1
+                if self.current >= len(self.source_code):
+                    print(f"[line {self.line}] Error: Unterminated string.", file=sys.stderr)
+                    self.had_error = True
+                    continue
+                self.current += 1
+                string_end = self.current - 1
+                string_literal = self.source_code[string_start:string_end]
+                tokens.append(Token("STRING", f'"{string_literal}"', string_literal))
+            elif char.isdigit():
+                number_start = self.current - 1
+                while self.current < len(self.source_code) and (self.source_code[self.current].isdigit() or self.source_code[self.current] == "."):
+                    self.current += 1
+                number_end = self.current
+                number_literal = self.source_code[number_start:number_end]
+                tokens.append(Token("NUMBER", number_literal, float(number_literal)))
+            elif char.isalpha() or char == "_":
+                identifier_start = self.current - 1
+                while self.current < len(self.source_code) and (self.source_code[self.current].isalnum() or self.source_code[self.current] == "_"):
+                    self.current += 1
+                identifier_end = self.current
+                identifier_literal = self.source_code[identifier_start:identifier_end]
+                if identifier_literal in ["and", "class", "else", "false", "for", "fun", "if", "nil", "or", "print", "return", "super", "this", "true", "var", "while"]:
+                    tokens.append(Token(identifier_literal.upper(), identifier_literal, None))
+                else:
+                    tokens.append(Token("IDENTIFIER", identifier_literal, None))
+            elif char == " ":
+                pass
+            elif char == "\t":
+                pass
+            elif char == "\r":
+                pass
+            elif char == "\f":
+                pass
+            elif char == "\n":
+                self.line += 1
+            else:
+                print(f"[line {self.line}] Error: Unexpected character: {char}", file=sys.stderr)
+                self.had_error = True
+        tokens.append(Token("EOF", "", None))
+        return tokens, self.had_error
 
 class Expression(ABC):
     @abstractmethod
@@ -67,7 +146,10 @@ class VariableExpression(Expression):
         self.name = name
 
     def evaluate(self):
-        return ENVIRONMENT.get(self.name)
+        if self.name not in ENVIRONMENT:
+            print(f"Undefined variable '{self.name}'", file=sys.stderr)
+            exit(70)
+        return ENVIRONMENT[self.name]
 
     def __str__(self) -> str:
         return f"(identifier {self.name})"
@@ -167,143 +249,32 @@ class BinaryExpression(Expression):
                 exit(70)
             return left_value <= right_value
 
-class AssignmentExpression(Expression):
-    def __init__(self, name, expression):
-        self.name = name
-        self.expression = expression
-
-    def __str__(self) -> str:
-        return f"(assignment {self.name} {self.expression})"
-
-    def evaluate(self):
-        value = self.expression.evaluate()
-        ENVIRONMENT.assign(self.name, value)
-        return value
-
-class Parser:
-    def __init__(self, tokens):
-        self.tokens = tokens
-        self.current = 0
-
-    def parse_primary(self):
-        self.current += 1
-        token = self.tokens[self.current - 1]
-
-        if token.type == "TRUE":
-            return LiteralExpression(True)
-
-        if token.type == "FALSE":
-            return LiteralExpression(False)
-
-        if token.type == "NIL":
-            return LiteralExpression(None)
-
-        if token.type in ["NUMBER", "STRING"]:
-            return LiteralExpression(token.literal)
-
-        if token.type == "LEFT_PAREN":
-            expression = self.parse_expression()
-            self.consume("RIGHT_PAREN")
-            return GroupExpression(expression)
-
-        if token.type == "IDENTIFIER":
-            return VariableExpression(token.lexeme)
-
-        print(f"Error at {token.lexeme}: Expect expression.", file=sys.stderr)
-        exit(65)
-
-    def parse_assignment(self):
-        expression = self.parse_equality()
-
-        if self.current < len(self.tokens):
-            token = self.tokens[self.current]
-
-            if token.type == "EQUAL":
-                self.current += 1
-                if isinstance(expression, VariableExpression):
-                    right = self.parse_assignment()
-                    return AssignmentExpression(expression.name, right)
-
-        return expression
-
-    def parse_block(self):
-        statements = []
-        while self.current < len(self.tokens) and self.tokens[self.current].type != "RIGHT_BRACE":
-            statements.append(self.parse_statement())
-
-        self.consume("RIGHT_BRACE")
-        return statements
-
-    def parse_statements(self):
-        statements = []
-        while self.tokens[self.current].type != "EOF":
-            statement = self.parse_statement()
-            statements.append(statement)
-        return statements
-
-    def parse_statement(self):
-        token = self.tokens[self.current]
-
-        if token.type == "PRINT":
-            self.current += 1
-            expression = self.parse_expression()
-            self.consume("SEMICOLON")
-            return PrintStatement(expression)
-
-        if token.type == "VAR":
-            self.current += 1
-            identifier = self.consume("IDENTIFIER")
-
-            if self.tokens[self.current].type == "EQUAL":
-                self.current += 1
-                expression = self.parse_expression()
-                self.consume("SEMICOLON")
-                return VariableDeclarationStatement(identifier.lexeme, expression)
-
-            self.consume("SEMICOLON")
-            return VariableDeclarationStatement(identifier.lexeme, None)
-
-        if token.type == "LEFT_BRACE":
-            self.current += 1
-            return BlockStatement(self.parse_block())
-
-        return self.parse_expression()
-
-    def parse_expression(self):
-        # parsing logic...
-        pass
-
-
 class Interpreter:
-    def interpret(self, expression):
-        if isinstance(expression, Expression):
-            return expression.evaluate()
+    def __init__(self):
+        self.had_error = False
 
-    def execute_statements(self, statements):
-        for statement in statements:
-            self.execute(statement)
+    def interpret(self, statement):
+        if isinstance(statement, Expression):
+            return statement.evaluate()
+        return None
 
-    def execute(self, statement):
-        # execute logic...
-        pass
-
-def run_file(filename):
-    with open(filename, "r") as f:
-        content = f.read()
-    scanner = Scanner(content)
-    tokens = scanner.scan_tokens()
-    parser = Parser(tokens)
-    statements = parser.parse_statements()
+def run_interpreter(source_code):
+    scanner = Scanner(source_code)
+    tokens, had_error = scanner.scan()
+    if had_error:
+        return
     interpreter = Interpreter()
-    interpreter.execute_statements(statements)
 
-def main():
-    if len(sys.argv) < 2:
-        print("Usage: python3 interpreter.py <script>")
-        sys.exit(64)
+    for token in tokens:
+        if token.type == "EOF":
+            break
+        print(f"Token: {token}")
 
-    script = sys.argv[1]
-    run_file(script)
-
+# Example usage
 if __name__ == "__main__":
-    main()
+    code = """
+    var a = 2;
+    var b = 3;
+    print a + b;
+    """
+    run_interpreter(code)
