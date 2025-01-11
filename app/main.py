@@ -1,8 +1,8 @@
 import sys
 
-from collections import deque
-
 import traceback
+
+from time import time
 
 debug = False
 
@@ -82,6 +82,10 @@ token_map = {
 
 }
 
+def debug_output(stuff):
+
+    print(stuff)
+
 def convert_primitive_to_str(val):
 
     if isinstance(val, bool):
@@ -95,6 +99,10 @@ def convert_primitive_to_str(val):
     if isinstance(val, float):
 
         return int(val) if val.is_integer() else val
+
+    if isinstance(val, FunctionNode):
+
+        return f"<fn {val.func_name}>"
 
     return val
 
@@ -290,6 +298,14 @@ def is_executable(maybe_executable):
 
         or isinstance(maybe_executable, ElseIfBlockNode)
 
+        or isinstance(maybe_executable, WhileNode)
+
+        or isinstance(maybe_executable, ForNode)
+
+        or isinstance(maybe_executable, FunctionCallNode)
+
+        or isinstance(maybe_executable, FunctionNode)
+
     )
 
 class BlockNode:
@@ -307,24 +323,6 @@ class BlockNode:
         interpreter = Interpreter(self.tokens)
 
         interpreter.execute_all(self.scope)
-
-        # for executable in interpreter.stack:
-
-        #    if is_executable(executable):
-
-        #        executable.execute()
-
-        """
-
-
-
-        for executable in self.executables:
-
-            if is_executable(executable):
-
-                executable.execute(self.scope)
-
-        """
 
 class ElseIfBlockNode:
 
@@ -378,33 +376,73 @@ class Executable:
 
         if self.command == "print":
 
+            print_val = self.value
+
             if is_executable(self.value):
 
-                self.value = self.value.execute()
+                print_val = self.value.execute()
 
-            print(convert_primitive_to_str(self.value))
+            print(convert_primitive_to_str(print_val))
 
             return None
 
         elif self.command == "if":
 
+            truth_val = self.value
+
             if is_executable(self.value):
 
-                self.value = self.value.execute()
+                truth_val = self.value.execute()
 
-            if self.value:
+            if truth_val:
 
                 self.value_two.execute()
 
         elif self.command == "=":
 
+            set_value = self.value_two
+
             if is_executable(self.value_two):
 
-                self.value_two = self.value_two.execute()
+                set_value = self.value_two.execute()
 
-            self.value.var_val = self.value_two
+            self.value.var_val = set_value
 
-            return self.value_two
+            return set_value
+
+        elif self.command == "while":
+
+            while self.value.execute():
+
+                self.value_two.execute()
+
+        elif self.command == "return":
+
+            # debug_output("RETURNING THIS")
+
+            # debug_output(self.value.parent.var_map)
+
+            # debug_output(self.value_two)
+
+            # debug_output(get_literal_val(self.value_two))
+
+            literal_val = get_literal_val(self.value_two)
+
+            curr_scope = self.value
+
+            # if the return is nested, we have to make sure the return value bubbles to function scope
+
+            while not curr_scope.is_function_scope:
+
+                curr_scope.set_return_val(literal_val)
+
+                curr_scope.has_returned = True
+
+                curr_scope = curr_scope.parent
+
+            curr_scope.set_return_val(literal_val)
+
+            curr_scope.has_returned = True
 
     def __repr__(self):
 
@@ -426,19 +464,229 @@ class VariableNode:
 
         return self.var_val
 
-class VariableMap:
+    def __repr__(self):
+
+        return f"(variable with name {self.var_name} and value {self.var_val})"
+
+def get_literal_val(val):
+
+    if is_executable(val):
+
+        return val.execute()
+
+    return val
+
+class ForNode:
+
+    def __init__(self, params, execution, scope):
+
+        self.params = params
+
+        self.execution = execution
+
+        self.scope = scope
+
+        self.parse_params()
+
+        initializer, condition, increment = self.parse_params()
+
+        self.initializer = initializer
+
+        self.condition = condition
+
+        self.increment = increment
+
+    def parse_params(self):
+
+        # initializer, condition, execution
+
+        blocks = []
+
+        curr_block = []
+
+        assert self.params[0][0] == "LEFT_PAREN"
+
+        assert self.params[-1][0] == "RIGHT_PAREN"
+
+        for token in self.params[1:-1]:
+
+            if token[0] == "SEMICOLON":
+
+                curr_block.append(token)
+
+                blocks.append(curr_block)
+
+                curr_block = []
+
+            else:
+
+                curr_block.append(token)
+
+        if curr_block:
+
+            curr_block.append(("SEMICOLON", ";", None))
+
+            blocks.append(curr_block)
+
+        if len(blocks) == 2:
+
+            blocks.append([])
+
+        assert len(blocks) == 3
+
+        return blocks
+
+    def execute(self):
+
+        init_interpreter = Interpreter(self.initializer)
+
+        init_interpreter.execute_all(self.scope)
+
+        while self.evaluate_condition():
+
+            interpreter = Interpreter(self.execution)
+
+            interpreter.execute_all(self.scope)
+
+            increment_interpreter = Interpreter(self.increment)
+
+            increment_interpreter.execute_all(self.scope)
+
+            if self.scope.has_returned:
+
+                break
+
+    def evaluate_condition(self):
+
+        interpreter = Interpreter(self.condition)
+
+        interpreter.evaluate_all(self.scope)
+
+        while interpreter.stack[-1] == ";":
+
+            interpreter.stack.pop()
+
+        res = get_literal_val(interpreter.stack.pop())
+
+        return is_truthy(res)
+
+class WhileNode:
+
+    def __init__(self, condition, execution, scope):
+
+        self.condition = condition
+
+        self.execution = execution
+
+        self.scope = scope
+
+    def execute(self):
+
+        while self.evaluate_condition():
+
+            interpreter = Interpreter(self.execution)
+
+            interpreter.execute_all(self.scope)
+
+            if self.scope.has_returned:
+
+                break
+
+    def evaluate_condition(self):
+
+        interpreter = Interpreter(self.condition)
+
+        interpreter.evaluate_all(self.scope)
+
+        res = get_literal_val(interpreter.stack.pop())
+
+        return is_truthy(res)
+
+class FunctionCallNode:
+
+    def __init__(self, function, args):
+
+        self.function = function
+
+        self.args = args
+
+    def execute(self):
+
+        return self.function.call_function(self.args)
+
+class Clock:
+
+    def __init__(self):
+
+        pass
+
+    def execute(self):
+
+        return self
+
+    def call_function(self, args):
+
+        return int(time())
+
+class Scope:
 
     # used to manage scopes
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, is_function_scope=False):
 
         self.var_map = {}
 
         self.parent = parent
 
+        self.func_map = {}
+
+        self.init_func_map()
+
+        self.return_val = None
+
+        self.has_returned = False
+
+        self.is_function_scope = is_function_scope
+
+    def get_return_val(self):
+
+        return self.return_val
+
+    def set_return_val(self, value):
+
+        self.return_val = value
+
+    def init_func_map(self):
+
+        self.func_map["clock"] = Clock()
+
     def get_var_map(self):
 
         return self.var_map
+
+    def function_exists(self, func_name):
+
+        if self.parent is None:
+
+            return func_name in self.func_map
+
+        if func_name in self.func_map:
+
+            return True
+
+        return self.parent.function_exists(func_name)
+
+    def get_function(self, func_name):
+
+        if self.parent is None:
+
+            return self.func_map[func_name]
+
+        if func_name in self.func_map:
+
+            return self.func_map[func_name]
+
+        return self.parent.get_function(func_name)
 
     def variable_exists(self, var_name):
 
@@ -468,9 +716,11 @@ class VariableMap:
 
         self.var_map[var_name] = var_node
 
-    def set_variable(self, var_name, var_node):
+    def init_function(self, func_name, function_node):
 
-        print(var_name, var_node)
+        self.func_map[func_name] = function_node
+
+    def set_variable(self, var_name, var_node):
 
         if self.parent is None:
 
@@ -485,6 +735,106 @@ class VariableMap:
         else:
 
             self.parent.set_variable(var_name, var_node)
+
+class FunctionNode:
+
+    def __init__(self, func_name, arg_tokens, execution, scope):
+
+        self.func_name = func_name
+
+        self.arg_names = self.get_arg_names(arg_tokens)
+
+        self.execution = execution
+
+        self.scope = scope
+
+    def get_arg_names(self, arg_tokens):
+
+        assert arg_tokens[0][0] == "LEFT_PAREN"
+
+        assert arg_tokens[-1][0] == "RIGHT_PAREN"
+
+        arg_names = []
+
+        idx = 0
+
+        arg_token_spliced = arg_tokens[1:-1]
+
+        while idx < len(arg_token_spliced):
+
+            arg_names.append(arg_token_spliced[idx][1])
+
+            idx += 1
+
+            if idx < len(arg_token_spliced):
+
+                assert arg_token_spliced[idx][1] == ","
+
+                idx += 1
+
+        return arg_names
+
+    def get_arg_literals(self, args):
+
+        assert args[0][0] == "LEFT_PAREN"
+
+        assert args[-1][0] == "RIGHT_PAREN"
+
+        arg_literals = []
+
+        idx = 0
+
+        arg_token_spliced = args[1:-1]
+
+        while idx < len(arg_token_spliced):
+
+            arg_literals.append(arg_token_spliced[idx][1])
+
+            idx += 1
+
+            if idx < len(arg_token_spliced):
+
+                assert arg_token_spliced[idx][1] == ","
+
+                idx += 1
+
+        return args
+
+    def call_function(self, args):
+
+        func_scope = Scope(self.scope, is_function_scope=True)
+
+        assert len(self.arg_names) == len(args), (self.arg_names, args)
+
+        for key, val in zip(self.arg_names, args):
+
+            func_scope.init_variable(key, val)
+
+        execution_interpreter = Interpreter(self.execution)
+
+        execution_interpreter.execute_all(func_scope)
+
+        return func_scope.get_return_val()
+
+    def execute(self):
+
+        return self
+
+def is_truthy(val):
+
+    if isinstance(val, bool) and not val:
+
+        return False
+
+    if val == "":
+
+        return True
+
+    if val == 0:
+
+        return True
+
+    return bool(val)
 
 class Interpreter:
 
@@ -504,7 +854,9 @@ class Interpreter:
 
     def execute_all(self, scope=None):
 
-        var_map = VariableMap() if scope is None else scope
+        var_map = Scope() if scope is None else scope
+
+        assert var_map.has_returned == False, "scope marked as return true"
 
         while self.idx < len(self.tokens):
 
@@ -514,9 +866,17 @@ class Interpreter:
 
                 continue
 
-            while self.stack[-1] == ";":
+            was_complete_statement = False
+
+            while self.stack and self.stack[-1] == ";":
 
                 self.stack.pop()
+
+                was_complete_statement = True
+
+            if not self.stack:
+
+                return
 
             res = self.stack.pop()
 
@@ -528,11 +888,19 @@ class Interpreter:
 
                 self.stack.append(res)
 
+            if was_complete_statement:
+
+                self.stack = []
+
+            if var_map.has_returned:
+
+                return
+
     def evaluate_all(self, var_map=None):
 
         if var_map is None:
 
-            var_map = VariableMap()
+            var_map = Scope()
 
         while self.idx < len(self.tokens):
 
@@ -548,7 +916,7 @@ class Interpreter:
 
             print(self.stack)
 
-            print(token)
+            print(token, word)
 
         if token in ("NIL", "FALSE", "TRUE"):
 
@@ -593,6 +961,40 @@ class Interpreter:
         if token == "LEFT_PAREN":
 
             self.idx += 1
+
+            if (
+
+                self.stack
+
+                and not is_executable(self.stack[-1])
+
+                and self.stack[-1] is not None
+
+            ):
+
+                raise Exception("INVALID FUNCTION CALL")
+
+            if self.stack and is_executable(self.stack[-1]):
+
+                res = self.stack.pop().execute()
+
+                assert isinstance(
+
+                    res, FunctionNode
+
+                ), "function call is not function return"
+
+                self.stack.append(res)
+
+            if self.stack and isinstance(self.stack[-1], FunctionNode):
+
+                func_args = self.parse_func_args(var_map)
+
+                function = self.stack.pop()
+
+                self.stack.append(FunctionCallNode(function, func_args))
+
+                return
 
             self.match(")", var_map)
 
@@ -724,9 +1126,31 @@ class Interpreter:
 
         if token == "GREATER":
 
+            self.idx += 1
+
             self.is_comparing = True
 
-            self.evaluate_binary(">", var_map)
+            # self.evaluate_binary('>', var_map)
+
+            left = self.stack.pop()
+
+            left = get_literal_val(left)
+
+            token = self.match_multiple_or_end([")", ";", "}"], var_map)
+
+            right = self.stack.pop()
+
+            right = get_literal_val(right)
+
+            if not self.is_numeric_literal(left) or not self.is_numeric_literal(right):
+
+                raise Exception("Operand must be a number.")
+
+            self.stack.append(left > right)
+
+            if token:
+
+                self.stack.append(token)
 
             self.is_comparing = False
 
@@ -808,13 +1232,9 @@ class Interpreter:
 
             unary_val = self.stack.pop()
 
-            self.stack.append(";")
-
-            if isinstance(unary_val, VariableNode):
-
-                unary_val = unary_val.execute()
-
             self.stack.append(Executable("print", unary_val))
+
+            self.stack.append(";")  # moved semicolon after unary val
 
         if token == "VAR":
 
@@ -856,7 +1276,7 @@ class Interpreter:
 
             self.stack.pop()
 
-            var_val = self.stack.pop() if self.stack else None
+            var_val = get_literal_val(self.stack.pop())
 
             var_node = VariableNode(var_name, var_val)
 
@@ -866,7 +1286,15 @@ class Interpreter:
 
             self.idx += 1
 
-            if not self.is_defining and not var_map.variable_exists(word):
+            if (
+
+                not self.is_defining
+
+                and not var_map.variable_exists(word)
+
+                and not var_map.function_exists(word)
+
+            ):
 
                 raise Exception("undefined var")
 
@@ -874,15 +1302,63 @@ class Interpreter:
 
                 self.stack.append(word)
 
-            else:
+            elif var_map.variable_exists(word):
 
                 self.stack.append(var_map.get_variable(word))
+
+            elif var_map.function_exists(word):
+
+                if self.tokens[self.idx][0] == "LEFT_PAREN":
+
+                    self.idx += 1
+
+                    func_args = []
+
+                    self.stack.append("(")
+
+                    popped_token = None
+
+                    while popped_token != ")":
+
+                        while self.stack[-1] not in [",", ")"]:
+
+                            self.evaluate_next(var_map)
+
+                        popped_token = self.stack.pop()
+
+                        if self.stack[-1] != "(":
+
+                            func_args.append(get_literal_val(self.stack.pop()))
+
+                    left_paren = self.stack.pop()
+
+                    assert left_paren == "(", left_paren
+
+                    self.stack.append(
+
+                        FunctionCallNode(var_map.get_function(word), func_args)
+
+                    )
+
+                else:
+
+                    self.stack.append(var_map.get_function(word))
+
+            else:
+
+                raise Exception("SOME OTHER THING")
 
         if token == "RIGHT_BRACE":
 
             self.idx += 1
 
             self.stack.append("}")
+
+        if token == "COMMA":
+
+            self.idx += 1
+
+            self.stack.append(",")
 
         if token == "LEFT_BRACE":
 
@@ -892,7 +1368,7 @@ class Interpreter:
 
             braces = ["{"]
 
-            next_var_map = VariableMap(var_map)
+            next_var_map = Scope(var_map)
 
             while braces:
 
@@ -934,6 +1410,10 @@ class Interpreter:
 
             self.evaluate_next(var_map, auto_execute=False)
 
+            while self.stack[-1] == ";":
+
+                self.stack.pop()
+
             executable = self.stack.pop()
 
             if self.idx >= len(self.tokens) or (
@@ -968,9 +1448,41 @@ class Interpreter:
 
             self.evaluate_next(var_map, auto_execute=False)
 
+            while self.stack[-1] == ";":
+
+                self.stack.pop()
+
             executable = self.stack.pop()
 
             self.stack.append(ElseIfBlockNode([], executable))
+
+        if token == "RETURN":
+
+            self.idx += 1
+
+            self.stack.append("return")
+
+            self.match(";", var_map)
+
+            if self.stack[-1] == "return":
+
+                self.stack.pop()
+
+                self.stack.append(Executable("return", var_map, None))
+
+                return
+
+            return_val = self.stack.pop()
+
+            # pop the return token
+
+            assert self.stack.pop() == "return"
+
+            # if var_map.get_variable('n') == 2:
+
+            #    debug_output(("N", return_val))
+
+            self.stack.append(Executable("return", var_map, return_val))
 
         if token == "OR":
 
@@ -980,9 +1492,77 @@ class Interpreter:
 
             self.evaluate_binary("and", var_map)
 
+        if token == "WHILE":
+
+            self.idx += 1
+
+            evaluation_tokens = []
+
+            assert self.tokens[self.idx][0] == "LEFT_PAREN"
+
+            self.idx += 1
+
+            paren_stack = ["("]
+
+            while paren_stack:
+
+                if self.tokens[self.idx][0] == "LEFT_PAREN":
+
+                    paren_stack.append("(")
+
+                elif self.tokens[self.idx][0] == "RIGHT_PAREN":
+
+                    paren_stack.pop()
+
+                evaluation_tokens.append(self.tokens[self.idx])
+
+                self.idx += 1
+
+            assert evaluation_tokens.pop()[0] == "RIGHT_PAREN"
+
+            # self.evaluate_next(var_map)
+
+            # self.clear_semicolons()
+
+            block_tokens = self.get_next_statement_or_block_tokens()
+
+            self.stack.append(WhileNode(evaluation_tokens, block_tokens, var_map))
+
+        if token == "FOR":
+
+            self.idx += 1
+
+            parens = self.get_next_parens()
+
+            execution = self.get_next_statement_or_block_tokens()
+
+            self.stack.append(ForNode(parens, execution, var_map))
+
+        if token == "FUN":
+
+            self.idx += 1
+
+            self.is_defining = True
+
+            self.evaluate_next(var_map)
+
+            func_name = self.stack.pop()
+
+            parens = self.get_next_parens()
+
+            executable = self.get_next_statement_or_block_tokens()
+
+            var_map.init_function(
+
+                func_name, FunctionNode(func_name, parens, executable, var_map)
+
+            )
+
+            self.is_defining = False
+
         return None
 
-    def match(self, symbol, var_map):
+    def match(self, symbol, var_map, pop_token=True):
 
         self.evaluate_next(var_map)
 
@@ -996,7 +1576,23 @@ class Interpreter:
 
             raise Exception(f"[line 1] expect {symbol}")
 
-        self.stack.pop()
+        if pop_token:
+
+            self.stack.pop()
+
+    def match_multiple_or_end(self, symbols, var_map):
+
+        self.evaluate_next(var_map)
+
+        while self.idx < len(self.tokens) and self.stack[-1] not in symbols:
+
+            self.evaluate_next(var_map)
+
+        if self.stack and self.stack[-1] in symbols:
+
+            return self.stack.pop()
+
+        return None
 
     def match_multiple(self, symbols, var_map):
 
@@ -1026,6 +1622,42 @@ class Interpreter:
 
         return isinstance(val, str)
 
+    def clear_semicolons(self):
+
+        if not self.stack:
+
+            return
+
+        while self.stack[-1] == ";":
+
+            self.stack.pop()
+
+    def parse_func_args(self, var_map):
+
+        func_args = []
+
+        self.stack.append("(")
+
+        popped_token = None
+
+        while popped_token != ")":
+
+            while self.stack[-1] not in [",", ")"]:
+
+                self.evaluate_next(var_map)
+
+            popped_token = self.stack.pop()
+
+            if self.stack[-1] != "(":
+
+                func_args.append(get_literal_val(self.stack.pop()))
+
+        left_paren = self.stack.pop()
+
+        assert left_paren == "(", left_paren
+
+        return func_args
+
     def evaluate_binary(self, symbol, var_map):
 
         self.idx += 1
@@ -1046,7 +1678,7 @@ class Interpreter:
 
             return
 
-        if not left_val and symbol == "and":
+        if left_val != "" and not left_val and symbol == "and":
 
             self.stack.append(False)
 
@@ -1184,13 +1816,89 @@ class Interpreter:
 
         elif symbol == "and":
 
-            return_val = left_val and right_val
+            res = is_truthy(left_val) and is_truthy(right_val)
+
+            if res:
+
+                return_val = right_val
+
+            else:
+
+                return_val = False
 
         else:
 
             return_val = None
 
         self.stack.append(return_val)
+
+    def get_next_statement_or_block_tokens(self):
+
+        executable_tokens = []
+
+        if self.tokens[self.idx][0] == "LEFT_BRACE":
+
+            executable_tokens.append(self.tokens[self.idx])
+
+            self.idx += 1
+
+            brace_stack = ["{"]
+
+            while brace_stack:
+
+                if self.tokens[self.idx][0] == "LEFT_BRACE":
+
+                    brace_stack.append("{")
+
+                elif self.tokens[self.idx][0] == "RIGHT_BRACE":
+
+                    brace_stack.pop()
+
+                executable_tokens.append(self.tokens[self.idx])
+
+                self.idx += 1
+
+            return executable_tokens
+
+        while self.tokens[self.idx][0] != "SEMICOLON":
+
+            executable_tokens.append(self.tokens[self.idx])
+
+            self.idx += 1
+
+        executable_tokens.append(self.tokens[self.idx])
+
+        self.idx += 1
+
+        return executable_tokens
+
+    def get_next_parens(self):
+
+        executable_tokens = []
+
+        assert self.tokens[self.idx][0] == "LEFT_PAREN"
+
+        executable_tokens.append(self.tokens[self.idx])
+
+        self.idx += 1
+
+        brace_stack = ["("]
+
+        while brace_stack:
+
+            if self.tokens[self.idx][0] == "LEFT_PAREN":
+
+                brace_stack.append("{")
+
+            elif self.tokens[self.idx][0] == "RIGHT_PAREN":
+
+                brace_stack.pop()
+
+            executable_tokens.append(self.tokens[self.idx])
+
+            self.idx += 1
+
+        return executable_tokens
 
 class Parser:
 
@@ -1207,6 +1915,8 @@ class Parser:
         self.processing_add_minus = False
 
         self.is_defining = False
+
+        self.num_groups = 0
 
     def parse_all(self):
 
@@ -1304,11 +2014,27 @@ class Parser:
 
         if token == "LEFT_PAREN":
 
+            self.num_groups += 1
+
             self.idx += 1
 
-            self.match(")")
+            params = []
 
-            value = f"(group {self.stack.pop()})"
+            token = None
+
+            # Fix this to only match on right_paren
+
+            while token != ")":
+
+                token = self.match_multiple([")", ";", ","])
+
+                if self.stack:
+
+                    params.append(self.stack.pop())
+
+            self.num_groups -= 1
+
+            value = f'(group {" ".join([str(param) for param in params])})'
 
             self.stack.append(value)
 
@@ -1500,11 +2226,33 @@ class Parser:
 
             self.stack.append("var_" + word)
 
+            if self.idx < len(self.tokens) and self.tokens[self.idx][0] == "IDENTIFIER":
+
+                raise Exception("missing comma")
+
+            if (
+
+                self.idx < len(self.tokens)
+
+                and self.tokens[self.idx][0] == "RIGHT_PAREN"
+
+                and self.num_groups == 0
+
+            ):
+
+                raise Exception("no closing parens")
+
         if token == "RIGHT_BRACE":
 
             self.idx += 1
 
             self.stack.append("}")
+
+        if token == "COMMA":
+
+            self.idx += 1
+
+            self.stack.append(",")
 
         if token == "LEFT_BRACE":
 
@@ -1581,6 +2329,72 @@ class Parser:
         if token == "AND":
 
             self.parse_binary("and")
+
+        if token == "WHILE":
+
+            self.idx += 1
+
+            self.parse_next()
+
+            condition = self.stack.pop()
+
+            self.parse_next()
+
+            block = self.stack.pop()
+
+            self.stack.append(f"(while {condition} {block})")
+
+        if token == "FOR":
+
+            self.idx += 1
+
+            self.parse_next()
+
+            val = self.stack.pop()
+
+            if val == "(group ;)" or val == "(group ; ;)" or val == "(group )":
+
+                raise Exception("[line 1] Error at 'var': Expect expression.")
+
+            if "block" in val:
+
+                raise Exception("EXPECTED EXPRESSION")
+
+            self.parse_next()
+
+            block = self.stack.pop()
+
+            self.stack.append(f"(for {val} {block})")
+
+        if token == "FUN":
+
+            self.idx += 1
+
+            self.parse_next()
+
+            func_name = self.stack.pop()
+
+            self.parse_next()
+
+            args = self.stack.pop()
+
+            if self.tokens[self.idx][0] != "LEFT_BRACE":
+
+                raise Exception("Function definition must have brace")
+
+            self.parse_next()
+
+            executable = self.stack.pop()
+
+            self.stack.append(f"(fun {func_name} {args} {executable}")
+
+        if token == "RETURN":
+
+            self.idx += 1
+
+            self.parse_next()
+
+            self.stack.append(f"(return {self.stack.pop()})")
 
         return None
 
@@ -1671,6 +2485,8 @@ def run(file_contents):
         if debug:
 
             print("PARSER")
+
+            traceback.print_exc()
 
             print(e)
 
@@ -1903,6 +2719,8 @@ def main():
     with open(filename) as file:
 
         file_contents = file.read()
+
+    # You can use print statements as follows for debugging, they'll be visible when running tests.
 
     print("Logs from your program will appear here!", file=sys.stderr)
 
