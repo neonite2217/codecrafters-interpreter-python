@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 import sys
 
+
 class Token:
     def __init__(self, type, lexeme, literal):
         self.type = type
@@ -8,7 +9,7 @@ class Token:
         self.literal = literal
 
     def __repr__(self) -> str:
-        return f"{self.type} {self.lexeme} {'null' if self.literal is None else self.literal}"
+        return f"{self.type} {self.lexeme} {"null" if self.literal is None else self.literal}"
 
 ENVIRONMENT = {}
 
@@ -21,6 +22,7 @@ class Scanner:
 
     def scan(self):
         tokens = []
+
         while self.current < len(self.source_code):
             self.current += 1
             char = self.source_code[self.current - 1]
@@ -45,11 +47,13 @@ class Scanner:
             elif char == ";":
                 tokens.append(Token("SEMICOLON", ";", None))
             elif char == "/":
+                # slash can either be division or a comment
                 if self.current < len(self.source_code) and self.source_code[self.current] == "/":
-                    while self.current < len(self.source_code) and self.source_code[self.source_code] != "\n":
+                    while self.current < len(self.source_code) and self.source_code[self.current] != "\n":
                         self.current += 1
                 else:
                     tokens.append(Token("SLASH", "/", None))
+
             elif char == "=":
                 if self.current < len(self.source_code) and self.source_code[self.current] == "=":
                     tokens.append(Token("EQUAL_EQUAL", "==", None))
@@ -63,20 +67,20 @@ class Scanner:
                 else:
                     tokens.append(Token("BANG", "!", None))
             elif char == "<":
-                if self.current < len(self.source_code) and self.source_code[self.source_code] == "=":
+                if self.current < len(self.source_code) and self.source_code[self.current] == "=":
                     tokens.append(Token("LESS_EQUAL", "<=", None))
                     self.current += 1
                 else:
                     tokens.append(Token("LESS", "<", None))
             elif char == ">":
-                if self.current < len(self.source_code) and self.source_code[self.source_code] == "=":
+                if self.current < len(self.source_code) and self.source_code[self.current] == "=":
                     tokens.append(Token("GREATER_EQUAL", ">=", None))
                     self.current += 1
                 else:
                     tokens.append(Token("GREATER", ">", None))
             elif char == "\"":
                 string_start = self.current
-                while self.current < len(self.source_code) and self.source_code[self.source_code] != "\"":
+                while self.current < len(self.source_code) and self.source_code[self.current] != '"':
                     self.current += 1
                 if self.current >= len(self.source_code):
                     print(f"[line {self.line}] Error: Unterminated string.", file=sys.stderr)
@@ -88,18 +92,19 @@ class Scanner:
                 tokens.append(Token("STRING", f'"{string_literal}"', string_literal))
             elif char.isdigit():
                 number_start = self.current - 1
-                while self.current < len(self.source_code) and (self.source_code[self.current].isdigit() or self.source_code[self.source_code] == "."):
+                while self.current < len(self.source_code) and (self.source_code[self.current].isdigit() or self.source_code[self.current] == "."):
                     self.current += 1
                 number_end = self.current
                 number_literal = self.source_code[number_start:number_end]
                 tokens.append(Token("NUMBER", number_literal, float(number_literal)))
             elif char.isalpha() or char == "_":
                 identifier_start = self.current - 1
-                while self.current < len(self.source_code) and (self.source_code[self.current].isalnum() or self.source_code[self.source_code] == "_"):
+                while self.current < len(self.source_code) and (self.source_code[self.current].isalnum() or self.source_code[self.current] == "_"):
                     self.current += 1
                 identifier_end = self.current
                 identifier_literal = self.source_code[identifier_start:identifier_end]
                 if identifier_literal in ["and", "class", "else", "false", "for", "fun", "if", "nil", "or", "print", "return", "super", "this", "true", "var", "while"]:
+                    # reserved words
                     tokens.append(Token(identifier_literal.upper(), identifier_literal, None))
                 else:
                     tokens.append(Token("IDENTIFIER", identifier_literal, None))
@@ -116,6 +121,7 @@ class Scanner:
             else:
                 print(f"[line {self.line}] Error: Unexpected character: {char}", file=sys.stderr)
                 self.had_error = True
+
         tokens.append(Token("EOF", "", None))
         return tokens, self.had_error
 
@@ -128,7 +134,6 @@ class Expression(ABC):
     @abstractmethod
     def evaluate(self):
         pass
-
 
 class LiteralExpression(Expression):
     def __init__(self, value) -> None:
@@ -143,7 +148,6 @@ class LiteralExpression(Expression):
     def evaluate(self):
         return self.value
 
-
 class VariableExpression(Expression):
     def __init__(self, name: str):
         self.name = name
@@ -157,7 +161,6 @@ class VariableExpression(Expression):
     def __str__(self) -> str:
         return f"(identifier {self.name})"
 
-
 class GroupExpression(Expression):
     def __init__(self, expression: Expression) -> None:
         self.expression = expression
@@ -167,7 +170,6 @@ class GroupExpression(Expression):
 
     def evaluate(self):
         return self.expression.evaluate()
-
 
 class UnaryExpression(Expression):
     def __init__(self, operator: Token, expression: Expression) -> None:
@@ -209,6 +211,7 @@ class BinaryExpression(Expression):
             if not isinstance(left_value, float) or not isinstance(right_value, float):
                 print("Operands must be numbers.", file=sys.stderr)
                 exit(70)
+
             return left_value - right_value
         if self.operator.type == "STAR":
             if not isinstance(left_value, float) or not isinstance(right_value, float):
@@ -228,23 +231,26 @@ class BinaryExpression(Expression):
             if not isinstance(left_value, float) or not isinstance(right_value, float):
                 print("Operands must be numbers.", file=sys.stderr)
                 exit(70)
+
             return left_value > right_value
         if self.operator.type == "GREATER_EQUAL":
             if not isinstance(left_value, float) or not isinstance(right_value, float):
                 print("Operands must be numbers.", file=sys.stderr)
                 exit(70)
+
             return left_value >= right_value
         if self.operator.type == "LESS":
             if not isinstance(left_value, float) or not isinstance(right_value, float):
                 print("Operands must be numbers.", file=sys.stderr)
                 exit(70)
+
             return left_value < right_value
         if self.operator.type == "LESS_EQUAL":
             if not isinstance(left_value, float) or not isinstance(right_value, float):
                 print("Operands must be numbers.", file=sys.stderr)
                 exit(70)
-            return left_value <= right_value
 
+            return left_value <= right_value
 
 class AssignmentExpression(Expression):
     def __init__(self, name, expression):
@@ -257,7 +263,6 @@ class AssignmentExpression(Expression):
     def evaluate(self):
         ENVIRONMENT[self.name] = self.expression.evaluate()
         return ENVIRONMENT[self.name]
-
 
 class Parser:
     def __init__(self, tokens):
@@ -287,17 +292,21 @@ class Parser:
 
     def parse_assignment(self):
         expression = self.parse_equality()
+
         if self.current < len(self.tokens):
             token = self.tokens[self.current]
             if token.type == "EQUAL":
                 self.current += 1
+
                 if isinstance(expression, VariableExpression):
                     right = self.parse_assignment()
                     return AssignmentExpression(expression.name, right)
+
         return expression
 
     def parse_equality(self):
         expression = self.parse_comparison()
+
         while self.current < len(self.tokens):
             token = self.tokens[self.current]
             if token.type not in ["BANG_EQUAL", "EQUAL_EQUAL"]:
@@ -305,10 +314,12 @@ class Parser:
             self.current += 1
             right = self.parse_comparison()
             expression = BinaryExpression(token, expression, right)
+
         return expression
 
     def parse_comparison(self):
         expression = self.parse_term()
+
         while self.current < len(self.tokens):
             token = self.tokens[self.current]
             if token.type not in ["GREATER", "GREATER_EQUAL", "LESS", "LESS_EQUAL"]:
@@ -316,10 +327,13 @@ class Parser:
             self.current += 1
             right = self.parse_term()
             expression = BinaryExpression(token, expression, right)
+
         return expression
+
 
     def parse_term(self):
         expression = self.parse_factor()
+
         while self.current < len(self.tokens):
             token = self.tokens[self.current]
             if token.type not in ["PLUS", "MINUS"]:
@@ -328,10 +342,12 @@ class Parser:
             right = self.parse_factor()
             left = expression
             expression = BinaryExpression(token, left, right)
+
         return expression
 
     def parse_factor(self):
         expression = self.parse_unary()
+
         while self.current < len(self.tokens):
             token = self.tokens[self.current]
             if token.type not in ["STAR", "SLASH"]:
@@ -340,6 +356,7 @@ class Parser:
             right = self.parse_unary()
             left = expression
             expression = BinaryExpression(token, left, right)
+
         return expression
 
     def parse_unary(self):
@@ -350,8 +367,10 @@ class Parser:
             return UnaryExpression(token, expression)
         return self.parse_primary()
 
+
     def parse_expression(self):
         return self.parse_assignment()
+
 
     def parse_statements(self):
         statements = []
@@ -370,35 +389,46 @@ class Parser:
 
         if token.type == "VAR":
             self.current += 1
-            name_token = self.tokens[self.current]
-            self.consume("IDENTIFIER")
-            name = name_token.lexeme
-            self.consume("EQUAL")
+            identifer = self.consume("IDENTIFIER")
+            if not self.tokens[self.current].type == "EQUAL":
+                self.consume("SEMICOLON")
+                return VariableDeclarationStatement(identifer.lexeme, None)
+
+            self.current += 1
             expression = self.parse_expression()
             self.consume("SEMICOLON")
-            return VariableDeclarationStatement(name, expression)
+            return VariableDeclarationStatement(identifer.lexeme, expression)
 
         if token.type == "LEFT_BRACE":
             self.current += 1
-            statements = self.parse_statements()
-            self.consume("RIGHT_BRACE")
-            return BlockStatement(statements)
+            return BlockStatement(self.parse_block())
 
-        print(f"Unexpected token: {token.lexeme}", file=sys.stderr)
+        expression = self.parse_expression()
+        self.consume("SEMICOLON");
+        return ExpressionStatement(expression)
+
+    def parse_block(self):
+        statements = []
+
+        while self.current < len(self.tokens) and self.tokens[self.current].type != "RIGHT_BRACE":
+            statements.append(self.parse_statement())
+
+        self.consume("RIGHT_BRACE")
+        return statements
+
+    def consume(self, type):
+        if self.current < len(self.tokens) and self.tokens[self.current].type == type:
+            self.current += 1
+            return self.tokens[self.current - 1]
+
+        print(f"Error at {self.tokens[self.current - 1].lexeme}: Expected {type}.", file=sys.stderr)
         exit(65)
 
-    def consume(self, expected_type):
-        token = self.tokens[self.current]
-        if token.type != expected_type:
-            print(f"Expected {expected_type} but found {token.type}", file=sys.stderr)
-            exit(65)
-        self.current += 1
 
 
 class Statement(ABC):
     @abstractmethod
-    def execute(self):
-        pass
+    def execute(self): pass
 
 
 class PrintStatement(Statement):
@@ -406,8 +436,14 @@ class PrintStatement(Statement):
         self.expression = expression
 
     def execute(self):
-        print(self.expression.evaluate())
+        print(lox_representation(self.expression.evaluate()))
 
+class ExpressionStatement(Statement):
+    def __init__(self, expression: Expression):
+        self.expression = expression
+
+    def execute(self):
+        self.expression.evaluate()
 
 class VariableDeclarationStatement(Statement):
     def __init__(self, name: str, expression: Expression | None):
@@ -420,40 +456,84 @@ class VariableDeclarationStatement(Statement):
         else:
             ENVIRONMENT[self.name] = self.expression.evaluate()
 
-
 class BlockStatement(Statement):
     def __init__(self, statements: list[Statement]):
         self.statements = statements
 
     def execute(self):
         global ENVIRONMENT
-
-        # Save the current environment (parent scope)
         parent_environment = ENVIRONMENT
-
-        # Create a new environment for the block scope, inheriting the parent environment
-        ENVIRONMENT = {**parent_environment}
-
-        # Execute each statement in the block
+        ENVIRONMENT = {**parent_environment}  # this ensures lexical scoping
         for statement in self.statements:
             statement.execute()
-
-        # Restore the parent environment after block execution
         ENVIRONMENT = parent_environment
 
+def lox_representation(value):
+    if value is True:
+        return "true"
+    if value is False:
+        return "false"
+    if value is None:
+        return "nil"
+    if isinstance(value, str):
+        return value
+    if value.is_integer():
+        return int(value)
+    return value
 
 def main():
-    source_code = input()
-    scanner = Scanner(source_code)
-    tokens, had_error = scanner.scan()
-    if had_error:
-        return
-    parser = Parser(tokens)
-    statements = parser.parse_statements()
+    if len(sys.argv) < 3:
+        print("Usage: ./your_program.sh tokenize <filename>", file=sys.stderr)
+        exit(1)
 
-    # Execute the program
-    for statement in statements:
-        statement.execute()
+    command = sys.argv[1]
+    filename = sys.argv[2]
+
+    if command == "tokenize":
+        with open(filename) as file:
+            file_contents = file.read()
+            tokens, had_error = Scanner(file_contents).scan()
+            for token in tokens:
+                print(token)
+            if had_error:
+                exit(65)
+            return
+
+    if command == "parse":
+        with open(filename) as file:
+            file_contents = file.read()
+            tokens, had_error = Scanner(file_contents).scan()
+            if had_error:
+                exit(65)
+            expression = Parser(tokens).parse_expression()
+            print(expression)
+            return
+
+    if command == "evaluate":
+        with open(filename) as file:
+            file_contents = file.read()
+            tokens, had_error = Scanner(file_contents).scan()
+            if had_error: exit(65)
+            expression = Parser(tokens).parse_expression()
+            print(lox_representation(expression.evaluate()))
+            return
+
+    if command == "run":
+        with open(filename) as file:
+            file_contents = file.read()
+            tokens, had_error = Scanner(file_contents).scan()
+            if had_error: exit(65)
+            statements = Parser(tokens).parse_statements()
+            for statement in statements:
+                statement.execute()
+            return
+
+
+
+    print(f"Unknown command: {command}", file=sys.stderr)
+    exit(1)
+
+
 
 
 if __name__ == "__main__":
